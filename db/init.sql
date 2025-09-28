@@ -1,0 +1,13 @@
+CREATE ROLE postgres WITH LOGIN PASSWORD 'vjnjh421';
+CREATE DATABASE prompt_db OWNER postgres;
+\connect prompt_db;
+GRANT ALL PRIVILEGES ON DATABASE prompt_db TO postgres;
+CREATE TABLE prompt_data (
+    id           BIGSERIAL PRIMARY KEY,
+    prompt_name  TEXT NOT NULL UNIQUE,
+    prompt       TEXT NOT NULL,
+);
+
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO postgres;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON TABLES TO postgres;
+
