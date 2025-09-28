@@ -9,7 +9,7 @@ services:
       POSTGRES_PASSWORD: vjnjh421
       POSTGRES_DB: prompt_db
     ports:
-      - "5432:5432"
+      - "5435:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./db/init.sql:/docker-entrypoint-initdb.d/001-init.sql:ro

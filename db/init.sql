@@ -5,7 +5,7 @@ GRANT ALL PRIVILEGES ON DATABASE prompt_db TO postgres;
 CREATE TABLE prompt_data (
     id           BIGSERIAL PRIMARY KEY,
     prompt_name  TEXT NOT NULL UNIQUE,
-    prompt       TEXT NOT NULL,
+    prompt       TEXT NOT NULL
 );
 
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO postgres;

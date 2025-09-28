@@ -10,7 +10,7 @@ from .security import POSTGRES_PASSWORD, POSTGRES_DB, POSTGRES_USER, POSTGRES_PO
 
 
 SQLACHEMY_DATABASE_URL = (
-    f"postgresql+asyncpg://{POSTGRES_USER}:{POSTGRES_PASSWORD}@db:{POSTGRES_PORT}/{POSTGRES_DB}"
+    f"postgresql+asyncpg://{POSTGRES_USER}:{POSTGRES_PASSWORD}@pg:{POSTGRES_PORT}/{POSTGRES_DB}"
 )
 engine = create_async_engine(SQLACHEMY_DATABASE_URL)
 
@@ -21,7 +21,7 @@ async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False
 
 
 class Prompt(Base):
-    __tablename__ = "Prompt_data"
+    __tablename__ = "prompt_data"
 
     id = Column(Integer, primary_key=True, index=True)
     prompt_name = Column(String, index=True)

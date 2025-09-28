@@ -3,17 +3,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.core.db_con import Prompt, get_db
 from sqlalchemy.future import select
 from api.schemas.openapi_schema import prompt_form
-from openai.client import ChatGPTClient
+from openai_.client import ChatGPTClient
 from api.core.security import SECRET_KEY_OPENAI
 
 openai = APIRouter(prefix="/api/v1/openai", tags=["openai"])
 
 @openai.post("/send_prompt/", status_code=status.HTTP_201_CREATED)
 async def add_prompt(prompt_data: prompt_form, db: AsyncSession = Depends(get_db)):
-    exists = await db.execute(select(Prompt).filter(Prompt.prompt_name == prompt_data.prompt_name))
-    exists = exists.scalar_one_or_none()
-    if exists:
-        raise HTTPException(status_code=409, detail="prompt_name already exists")
     row = Prompt(prompt_name=prompt_data.prompt_name, prompt=prompt_data.prompt)
     db.add(row)
     await db.commit()
