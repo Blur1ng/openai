@@ -1,14 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from api.core.db_con import Prompt, get_db
-from sqlalchemy.future import select
 from api.schemas.openapi_schema import prompt_form
 from openai_.client import ChatGPTClient
-from api.core.security import SECRET_KEY_OPENAI
+from api.core.security import SECRET_KEY_OPENAI, verify_admin_token
 
 openai = APIRouter(prefix="/api/v1/openai", tags=["openai"])
 
-@openai.post("/send_prompt/", status_code=status.HTTP_201_CREATED)
+@openai.post("/send_prompt/", status_code=status.HTTP_201_CREATED, dependencies=[Depends(verify_admin_token)])
 async def add_prompt(prompt_data: prompt_form, db: AsyncSession = Depends(get_db)):
     row = Prompt(prompt_name=prompt_data.prompt_name, prompt=prompt_data.prompt)
     db.add(row)
