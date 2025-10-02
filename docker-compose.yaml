@@ -19,6 +19,8 @@ services:
     container_name: fastapi-app
     ports:
       - "8000:8000"
+    depends_on:
+      - db
 
 volumes:
   pgdata:
