@@ -23,9 +23,10 @@ async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False
 class Prompt(Base):
     __tablename__ = "prompt_data"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True)
     prompt_name = Column(String, index=True)
     prompt = Column(String, index=True)
+    request = Column(String, index=True) 
 
 
 async def get_db():

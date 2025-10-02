@@ -19,10 +19,13 @@ async def add_prompt(prompt_data: prompt_form, db: AsyncSession = Depends(get_db
         api_key=SECRET_KEY_OPENAI,
         model_name="gpt-4o-mini",
         embeddings_model_name="text-embedding-3-small",
+        system_prompt=prompt_data.prompt,
     )
-    response = client.send_message(prompt_data.prompt)
+    response = client.send_message(prompt_data.request)
 
     return {
         "prompt_name": row.prompt_name,
+        "system_prompt": row.prompt,
+        "user_request": prompt_data.request,
         "gpt_response": response,
     }
