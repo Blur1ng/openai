@@ -27,6 +27,7 @@ class Prompt(Base):
     prompt_name = Column(String, index=True)
     prompt = Column(String, index=True)
     request = Column(String, index=True) 
+    model = Column(String) 
 
 
 async def get_db():

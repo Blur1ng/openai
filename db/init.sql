@@ -6,7 +6,8 @@ CREATE TABLE prompt_data (
     id           BIGSERIAL PRIMARY KEY,
     prompt_name  TEXT NOT NULL UNIQUE,
     prompt       TEXT NOT NULL,
-    request      TEXT NOT NULL
+    request      TEXT NOT NULL,
+    model        TEXT NOT NULL
 );
 
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO postgres;

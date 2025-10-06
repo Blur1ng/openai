@@ -1,5 +1,5 @@
 import logging
-from typing import Any, List, Optional, Generator
+from typing import List, Optional, Generator
 
 import tiktoken
 from langchain.schema import HumanMessage, SystemMessage
