@@ -23,7 +23,8 @@ async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False
 class Prompt(Base):
     __tablename__ = "prompt_data"
 
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    ai_model = Column(String, primary_key=True)
     prompt_name = Column(String, index=True)
     prompt = Column(String, index=True)
     request = Column(String, index=True) 

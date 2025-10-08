@@ -2,6 +2,7 @@ from pydantic import BaseModel, ConfigDict
 
 class prompt_form(BaseModel):
     id: int | None = None
+    ai_model: str
     prompt_name: str
     prompt: str
     request: str

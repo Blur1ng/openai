@@ -1,9 +1,8 @@
-CREATE ROLE postgres WITH LOGIN PASSWORD 'vjnjh421';
-CREATE DATABASE prompt_db OWNER postgres;
 \connect prompt_db;
 GRANT ALL PRIVILEGES ON DATABASE prompt_db TO postgres;
 CREATE TABLE prompt_data (
-    id           BIGSERIAL PRIMARY KEY,
+    id           BIGSERIAL SERIAL PRIMARY KEY,
+    ai_model     TEXT NOT NULL,
     prompt_name  TEXT NOT NULL UNIQUE,
     prompt       TEXT NOT NULL,
     request      TEXT NOT NULL,

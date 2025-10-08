@@ -10,7 +10,10 @@ POSTGRES_PASSWORD = os.getenv("DB_PASSWORD")
 POSTGRES_DB = os.getenv("DB_NAME")
 POSTGRES_PORT = os.getenv("DB_PORT")
 SECRET_KEY_OPENAI = os.getenv("SECRET_KEY_OPENAI")
+SECRET_KEY_DEEPSEEK = os.getenv("SECRET_KEY_DEEPSEEK")
+SECRET_KEY_SONNET = os.getenv("SECRET_KEY_SONNET")
 SECRET_ADMIN_TOKEN = os.getenv("SECRET_ADMIN_TOKEN")
+
 
 def verify_admin_token(x_admin_token: str = Header(..., alias="X-Admin-Token")):
     if x_admin_token != SECRET_ADMIN_TOKEN:
