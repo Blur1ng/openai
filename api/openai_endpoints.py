@@ -41,7 +41,7 @@ async def add_prompt(prompt_data: prompt_form, db: AsyncSession = Depends(get_db
     elif ai_model == "deepseek":
         client = DeepSeekClient(
             api_key=SECRET_KEY_DEEPSEEK,
-            model_name="deepseek-chat",
+            model_name=prompt_data.model, #"deepseek-chat",
             system_prompt=prompt_data.prompt
         )
 
