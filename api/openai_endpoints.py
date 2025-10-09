@@ -1,11 +1,11 @@
-from fastapi import APIRouter, Depends, status, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
-from api.core.db_con import Prompt, get_db
+from fastapi                    import APIRouter, Depends, status, HTTPException
+from sqlalchemy.ext.asyncio     import AsyncSession
+from api.core.db_con            import Prompt, get_db
 from api.schemas.openapi_schema import prompt_form
-from openai_.client import ChatGPTClient
-from openai_.deepseek_client import DeepSeekClient
-#from openai_.sonnet_client import SonnetClient
-from api.core.security import SECRET_KEY_OPENAI, SECRET_KEY_DEEPSEEK, SECRET_KEY_SONNET, verify_admin_token
+from openai_.client             import ChatGPTClient
+from openai_.deepseek_client    import DeepSeekClient
+from openai_.sonnet_client      import SonnetClient
+from api.core.security          import SECRET_KEY_OPENAI, SECRET_KEY_DEEPSEEK, SECRET_KEY_SONNET, verify_admin_token
 
 openai = APIRouter(prefix="/api/v1/openai", tags=["openai"])
 
@@ -47,14 +47,16 @@ async def add_prompt(prompt_data: prompt_form, db: AsyncSession = Depends(get_db
 
         texts = client.send_message(prompt_data.request)
 
-    #elif ai_model == "sonnet":
-    #    client = SonnetClient(
-    #        api_key=SECRET_KEY_SONNET,
-    #        model_name="claude-sonnet...",
-    #        system_prompt=prompt_data.prompt
-    #    )
-    #
-    #    texts = client.send_message(prompt_data.request)
+    elif ai_model == "sonnet":
+        client = SonnetClient(
+            api_key=SECRET_KEY_SONNET,
+            model_name=prompt_data.model,
+            system_prompt=prompt_data.prompt
+        )
+
+        result = client.send_message_with_usage(prompt_data.request)
+        texts = result["text"]
+        total_usage = result["usage"]
 
     else:
         raise HTTPException(status_code=400, detail="Нет такой аи модели")
