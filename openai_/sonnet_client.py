@@ -8,10 +8,10 @@ class SonnetClient:
     def __init__(
         self,
         api_key: str,
-        model: str = "claude-3-sonnet-20240229",
+        model: str = "claude-sonnet-4-20250514",
         system_prompt: Optional[str] = None,
         max_tokens_per_chunk: int = 1024,
-        chunk_char_size: int = 4000,
+        chunk_char_size: int = 2200,
         max_retries: int = 3,
         retry_delay: float = 1.0,
     ):
@@ -29,18 +29,20 @@ class SonnetClient:
 
     def _send_chunk(self, chunk: str, include_system: bool = False) -> str:
         """Отправляет один чанк, с retry-логикой."""
-        messages = []
+        messages = [{"role": "user", "content": chunk}]
+
+        api_kwargs = {
+            "model": self.model,
+            "max_tokens": self.max_tokens,
+            "messages": messages
+        }
+        
         if include_system and self.system_prompt:
-            messages.append({"role": "system", "content": self.system_prompt})
-        messages.append({"role": "user", "content": chunk})
+            api_kwargs["system"] = self.system_prompt
 
         for attempt in range(self.max_retries):
             try:
-                response = self.client.messages.create(
-                    model=self.model,
-                    max_tokens=self.max_tokens,
-                    messages=messages
-                )
+                response = self.client.messages.create(**api_kwargs)
                 if response.content:
                     return response.content[0].text.strip()
                 return ""
@@ -70,16 +72,22 @@ class SonnetClient:
 
         for i, chunk in enumerate(chunks):
             include_system = (i == 0)
-            messages = []
+            
+            # Build messages list with only user messages
+            messages = [{"role": "user", "content": chunk}]
+            
+            # Prepare kwargs for the API call
+            api_kwargs = {
+                "model": self.model,
+                "max_tokens": self.max_tokens,
+                "messages": messages
+            }
+            
+            # Add system prompt as a top-level parameter if needed
             if include_system and self.system_prompt:
-                messages.append({"role": "system", "content": self.system_prompt})
-            messages.append({"role": "user", "content": chunk})
+                api_kwargs["system"] = self.system_prompt
 
-            response = self.client.messages.create(
-                model=self.model,
-                max_tokens=self.max_tokens,
-                messages=messages
-            )
+            response = self.client.messages.create(**api_kwargs)
 
             # собрать текст
             if response.content:
@@ -87,15 +95,14 @@ class SonnetClient:
 
             # собрать usage
             if response.usage:
-                total_usage["prompt_tokens"] += response.usage.prompt_tokens or 0
-                total_usage["completion_tokens"] += response.usage.completion_tokens or 0
-                total_usage["total_tokens"] += response.usage.total_tokens or 0
+                total_usage["prompt_tokens"] += response.usage.input_tokens or 0
+                total_usage["completion_tokens"] += response.usage.output_tokens or 0
+                total_usage["total_tokens"] += (response.usage.input_tokens or 0) + (response.usage.output_tokens or 0)
 
         return {
             "text": "\n".join(full_text).strip(),
             "usage": total_usage
         }
-
 
     def calculate_cost(self, prompt_tokens: int, completion_tokens: int) -> float:
         """
@@ -113,4 +120,3 @@ class SonnetClient:
 
         cost = (prompt_tokens * price["prompt"] + completion_tokens * price["completion"]) / 1000
         return round(cost, 6)
-
