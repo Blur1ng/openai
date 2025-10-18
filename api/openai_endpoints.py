@@ -20,7 +20,6 @@ async def add_prompt(prompt_data: prompt_form, db: AsyncSession = Depends(get_db
     Принимает системный промпт и код, возвращает задокументированный код.
     """
     
-    # Сохраняем запрос в БД
     row = Prompt(
         ai_model=prompt_data.ai_model, 
         prompt_name=prompt_data.prompt_name, 
@@ -51,14 +50,12 @@ async def add_prompt(prompt_data: prompt_form, db: AsyncSession = Depends(get_db
         
         logging.info(f"Request tokens: {request_tokens}, System tokens: {system_tokens}, Total: {total_input_tokens}, Max: {chatgpt_client.max_tokens}")
         
-        # ВАРИАНТ 1: Если запрос помещается целиком - отправляем одним запросом (РЕКОМЕНДУЕТСЯ)
         if total_input_tokens <= chatgpt_client.max_tokens:
             result = chatgpt_client.send_full_request_with_usage(prompt_data.request)
             texts = result["text"]
             total_usage = result["usage"]
             logging.info(f"Sent as single request. Tokens used: {total_usage['total_tokens']}")
         
-        # ВАРИАНТ 2: Если не помещается - разбиваем на чанки
         else:
             logging.warning(f"Request too large ({total_input_tokens} tokens), splitting into chunks")
             
@@ -72,7 +69,6 @@ async def add_prompt(prompt_data: prompt_form, db: AsyncSession = Depends(get_db
             for idx, chunk in enumerate(chunks, 1):
                 logging.info(f"Processing chunk {idx}/{len(chunks)}")
                 
-                # Добавляем контекст для каждого чанка
                 chunk_message = f"[Часть {idx} из {len(chunks)}]\n\n{chunk}"
                 
                 result = chatgpt_client.send_message_with_usage(chunk_message)
@@ -81,7 +77,7 @@ async def add_prompt(prompt_data: prompt_form, db: AsyncSession = Depends(get_db
                 for key in total_usage:
                     total_usage[key] += result["usage"].get(key, 0)
             
-            texts = '\n\n'.join(all_texts)  # Объединяем через двойной перенос
+            texts = '\n\n'.join(all_texts)  
             logging.info(f"Completed processing {len(chunks)} chunks. Total tokens: {total_usage['total_tokens']}")
     
     elif ai_model == "deepseek":
