@@ -50,17 +50,6 @@ async def add_prompt(prompt_data: prompt_form, db: AsyncSession = Depends(get_db
 
         texts = client.send_message(prompt_data.request)
 
-    elif ai_model == "sonnet":
-        client = SonnetClient(
-            api_key=SECRET_KEY_SONNET,
-            model_name=prompt_data.model,
-            system_prompt=prompt_data.prompt
-        )
-
-        result = client.send_message_with_usage(prompt_data.request)
-        texts = result["text"]
-        total_usage = result["usage"]
-
     else:
         raise HTTPException(status_code=400, detail="Нет такой аи модели")
     
