@@ -1,10 +1,10 @@
 import logging
-from typing import List, Optional
-from openai import OpenAI
 import tiktoken
-from langchain.schema import HumanMessage, SystemMessage
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-from pydantic import SecretStr
+from   langchain.schema import HumanMessage, SystemMessage
+from   langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from   pydantic         import SecretStr
+from   typing           import List, Optional
+from   openai           import OpenAI
 
 
 class ChatGPTClient(object):
@@ -49,7 +49,7 @@ class ChatGPTClient(object):
             'gpt-3.5-turbo': 16385,
             'gpt-3.5-turbo-16k': 16384,
             'gpt-4': 8192,
-            'gpt-4o-mini': 128000,  # ИСПРАВЛЕНО: реальный лимит 128k
+            'gpt-4o-mini': 128000, 
             'gpt-4o': 128000,
             'gpt-4-32k': 32768,
             'text-embedding-ada-002': 8191,
@@ -144,7 +144,6 @@ class ChatGPTClient(object):
             messages.append({"role": "system", "content": self.system_prompt})
         messages.append({"role": "user", "content": user_message})
         
-        # Проверяем общий размер
         total_tokens = sum(len(self.tokenize_text(msg.get("content", ""))) for msg in messages)
         
         if total_tokens > self.max_tokens:
@@ -166,11 +165,10 @@ class ChatGPTClient(object):
     
     def calculate_cost(self, prompt_tokens, completion_tokens):
         """Рассчитывает стоимость запроса"""
-        # Цены за 1M токенов (обновлено)
         prices = {
             "gpt-4": {"prompt": 30.0, "completion": 60.0},
             "gpt-4-1106-preview": {"prompt": 10.0, "completion": 30.0},
-            "gpt-4o-mini": {"prompt": 0.150, "completion": 0.600},  # $0.150 / $0.600 per 1M tokens
+            "gpt-4o-mini": {"prompt": 0.150, "completion": 0.600}, 
             "gpt-4o": {"prompt": 2.50, "completion": 10.0},
             "gpt-3.5-turbo": {"prompt": 0.50, "completion": 1.50},
         }
