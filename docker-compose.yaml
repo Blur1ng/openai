@@ -28,7 +28,7 @@ services:
      - app
 
   worker:
-    build: ./worker
+    build: ./rq_worker
     container_name: rq_worker
     depends_on:
       - app
