@@ -36,7 +36,7 @@ class SonnetClient:
             'claude-3-5-sonnet-20240620': 200000,
             'claude-3-5-sonnet-20241022': 200000,
             'claude-sonnet-4-20250514': 200000,  
-            'claude-opus-4-20250514': 200000,    
+            'claude-opus-4-20250514': 200000, 
         }
         return model_token_limits.get(model_name, 200000)
 

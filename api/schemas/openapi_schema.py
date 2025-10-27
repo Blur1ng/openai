@@ -9,9 +9,3 @@ class prompt_form(BaseModel):
     model: str
 
     model_config = ConfigDict(from_attributes=True)
-
-class one_file_form(BaseModel):
-    id: int | None = None
-    code: str
-    prompt_name_: str
-    
