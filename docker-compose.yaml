@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: vjnjh421
       POSTGRES_DB: prompt_db
     ports:
-      - "5435:5432"
+      - "5436:5432"
     volumes:
       - pgdata:/var/lib/postgresql/datax
       - ./db/init.sql:/docker-entrypoint-initdb.d/001-init.sql:ro
@@ -16,16 +16,22 @@ services:
     build: .
     container_name: fastapi-app
     ports:
-      - "8000:8000"
+      - "8001:8000"
     depends_on:
       - db
 
   redis:
     image: redis:6-alpine
     ports:
-      - "6379:6379"
+      - "6381:6379"
     depends_on:
      - app
+
+  worker:
+    build: ./worker
+    container_name: rq_worker
+    depends_on:
+      - app
 
 
 volumes:
