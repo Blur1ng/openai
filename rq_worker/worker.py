@@ -1,3 +1,9 @@
+import sys
+import os
+
+
+sys.path.insert(0, '/app') 
+
 import redis
 from rq import Worker, Queue
 

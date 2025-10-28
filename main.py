@@ -17,10 +17,16 @@ app = FastAPI()
 #    uvicorn.run(app, host="0.0.0.0", port=8000)
 
 
+import sys
+import os
+
+sys.path.insert(0, '/app') 
+
 import redis
 from rq import Queue
 from pathlib import Path
-from api.broker.task import add_prompt  # Import the actual function
+
+from api.broker.task import add_prompt
 
 redis_conn = redis.Redis(host='redis', port=6379)
 q = Queue('to_aimodel', connection=redis_conn)
@@ -36,7 +42,8 @@ def send_task():
                 "request": f"{code_file.read()}",
                 "model": "gpt-4o-mini"
             }
-            job = q.enqueue(add_prompt, architecture_data)  # Pass function directly
+            # Pass the function object directly, NOT as a string
+            job = q.enqueue(add_prompt, architecture_data)
             print(f"Задача поставлена в очередь: {job.id}")
             return job.id
 
