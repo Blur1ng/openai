@@ -28,10 +28,14 @@ services:
      - app
 
   worker:
-    build: ./rq_worker
+    build: .
+    command: python3 /app/rq_worker/worker.py
     container_name: rq_worker
     depends_on:
       - app
+      - redis
+    volumes:
+      - ./rq_worker:/app/rq_worker
 
 
 volumes:
