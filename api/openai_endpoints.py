@@ -1,18 +1,25 @@
 import logging
 from fastapi                    import APIRouter, Depends, status, HTTPException
 from sqlalchemy.ext.asyncio     import AsyncSession
+from api.core.db_con            import get_db
+from api.schemas.openapi_schema import prompt_form, request_form
+from api.core.security          import SECRET_KEY_OPENAI, SECRET_KEY_DEEPSEEK, SECRET_KEY_SONNET, verify_admin_token
+from api.broker.task            import send_task
 from api.core.db_con            import Prompt, get_db
-from api.schemas.openapi_schema import prompt_form
 from openai_.openai_client      import ChatGPTClient
 from openai_.deepseek_client    import DeepSeekClient
 from openai_.sonnet_client      import SonnetClient
-from api.core.security          import SECRET_KEY_OPENAI, SECRET_KEY_DEEPSEEK, SECRET_KEY_SONNET, verify_admin_token
 
+ai_model = APIRouter(prefix="/api/v1/ai_model", tags=["ai_model"])
 
-openai = APIRouter(prefix="/api/v1/openai", tags=["openai"])
-
-@openai.post("/send_prompt/", status_code=status.HTTP_201_CREATED, dependencies=[Depends(verify_admin_token)])
-async def add_prompt(prompt_data: prompt_form, db: AsyncSession = Depends(get_db)):
+#new version(send only code(promt from files on the Server))
+@ai_model.post("/send_prompt/", status_code=status.HTTP_201_CREATED, dependencies=[Depends(verify_admin_token)])
+async def add_prompt_new(request_data: request_form, db: AsyncSession = Depends(get_db)):
+    return send_task(request_data, db)
+    
+#old version(send promt and code)
+@ai_model.post("/send_prompt/", status_code=status.HTTP_201_CREATED, dependencies=[Depends(verify_admin_token)])
+async def add_prompt_old(prompt_data: prompt_form, db: AsyncSession = Depends(get_db)):
     row = Prompt(
         ai_model=prompt_data.ai_model, 
         prompt_name=prompt_data.prompt_name, 
@@ -173,3 +180,4 @@ async def add_prompt(prompt_data: prompt_form, db: AsyncSession = Depends(get_db
         }
     }
     
+

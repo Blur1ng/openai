@@ -30,6 +30,14 @@ class Prompt(Base):
     request = Column(String) 
     model = Column(String) 
 
+class RequestData(Base):
+    __tablename__ = "request_data"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    ai_model = Column(String)
+    request = Column(String)
+    model = Column(String) 
+
 
 async def get_db():
     async with async_session() as db:
