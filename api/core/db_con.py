@@ -5,7 +5,10 @@ from sqlalchemy import (
     Column,
     Integer,
     String,
+    Text,
+    DateTime,
 )
+
 from .security import POSTGRES_PASSWORD, POSTGRES_DB, POSTGRES_USER, POSTGRES_PORT
 
 
@@ -37,6 +40,24 @@ class RequestData(Base):
     ai_model = Column(String)
     request = Column(String)
     model = Column(String) 
+
+class JobResult(Base):
+    __tablename__ = "job_results"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    job_id = Column(String, unique=True, nullable=False, index=True)
+    ai_model = Column(String, nullable=False)
+    model = Column(String, nullable=False)
+    prompt_name = Column(String, nullable=False)
+    request_code = Column(Text, nullable=False)
+    result_text = Column(Text)
+    prompt_tokens = Column(Integer)
+    completion_tokens = Column(Integer)
+    total_tokens = Column(Integer)
+    status = Column(String, nullable=False, default='queued')
+    error_message = Column(Text)
+    created_at = Column(DateTime)
+    completed_at = Column(DateTime)
 
 
 async def get_db():

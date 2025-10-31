@@ -1,0 +1,136 @@
+; =========================================================================
+; Laboratornaya rabota No3 - GPSS World
+; Variant 3
+; =========================================================================
+; Zadanie:
+; Issledovat rabotu mnogokanalnoy SMO
+; K = 3 (chislo kanalov SMO)
+; lambda = 8 (intensivnost postupleniya zayavok, eksponencialnoe raspredelenie)
+; tau = ? (vremya obsluzhivaniya - fiksirovannoe, nuzhno nayti maksimalnoe)
+; 
+; Cel: nayti maksimalnoe znachenie tau, pri kotorom koefficient zagruzki
+;      SMO ne prevyshaet 0.65
+; Shag izmeneniya tau = 0.25
+; Kolichestvo transaktov za progen: 500
+; =========================================================================
+
+; Opredelenie konstant
+lambda      EQU     8           ; Intensivnost postupleniya zayavok
+K           EQU     3           ; Chislo kanalov SMO
+tau         EQU     0.25        ; Nachalnoe vremya obsluzhivaniya (budet izmenyatsya)
+
+; Opredelenie ustroystv
+Smo         STORAGE K           ; Mnogokanalnaya SMO s K kanalami
+
+; Osnovnaya model SMO
+            GENERATE (Exponential(1,0,1/lambda))  ; Postupleniye zayavok
+            ENTER    Smo,1                        ; Zanyat odin kanal SMO
+            ADVANCE  tau                          ; Obsluzhivanie zayavki
+            LEAVE    Smo,1                        ; Osvobodit kanal SMO
+            TERMINATE 1                           ; Zavershenie obsluzhivaniya
+
+; =========================================================================
+; PLUS-eksperiment dlya poiska maksimalnogo tau
+; =========================================================================
+
+EXPERIMENT FindMaxTau() 
+BEGIN
+    TEMPORARY TauValue;         ; Tekushchee znachenie tau
+    TEMPORARY MaxTau;           ; Maksimalnoe podkhodyashchee tau
+    TEMPORARY Utilization;      ; Koefficient zagruzki
+    TEMPORARY Str;              ; Stroka dlya formirovaniya komand
+    TEMPORARY TauStep;          ; Shag izmeneniya tau
+    TEMPORARY TauStart;         ; Nachalnoe znachenie tau
+    TEMPORARY TauEnd;           ; Konechnoe znachenie tau
+    
+    ; Inicializaciya parametrov
+    TauStep = 0.25;
+    TauStart = 0.25;
+    TauEnd = 5.0;               ; Maksimalnoe znachenie dlya poiska
+    MaxTau = 0;
+    
+    ; Vyvod zagolovka
+    DoCommand("SHOW """"");
+    DoCommand("SHOW ""=========================================""");
+    DoCommand("SHOW ""  Laboratory Work No3 - Variant 3      """);
+    DoCommand("SHOW ""=========================================""");
+    DoCommand("SHOW ""K = 3 (chislo kanalov SMO)             """);
+    DoCommand("SHOW ""lambda = 8 (intensivnost postupleniya) """);
+    DoCommand("SHOW ""Shag tau = 0.25                        """);
+    DoCommand("SHOW ""Cel: koefficient zagruzki <= 0.65      """);
+    DoCommand("SHOW ""=========================================""");
+    DoCommand("SHOW """"");
+    
+    ; Osnovnoy cikl perebora znacheniy tau
+    TauValue = TauStart;
+    WHILE (TauValue <= TauEnd) DO 
+    BEGIN
+        ; Vyvod tekushchih parametrov
+        DoCommand("SHOW """"");
+        Str = Polycatenate("SHOW ""Testirovanie tau = ", String(TauValue), """");
+        DoCommand(Str);
+        
+        ; Sbros statistiki
+        DoCommand("CLEAR OFF");
+        
+        ; Ustanovka novogo znacheniya tau
+        Str = Catenate("tau EQU ", String(TauValue));
+        DoCommand(Str);
+        
+        ; Zapusk modelirovaniya na 500 transaktov
+        DoCommand("START 500,NP");
+        
+        ; Poluchenie koefficienta zagruzki
+        Utilization = SR$Smo;
+        
+        ; Vyvod rezultata
+        Str = Polycatenate("SHOW ""  Koefficient zagruzki = ", String(Utilization), """");
+        DoCommand(Str);
+        
+        ; Proverka usloviya
+        IF (Utilization <= 0.65) THEN 
+        BEGIN
+            MaxTau = TauValue;
+            DoCommand("SHOW ""  Status: PODHODIT (zagruzka <= 0.65)""");
+        END
+        ELSE
+        BEGIN
+            DoCommand("SHOW ""  Status: NE PODHODIT (zagruzka > 0.65)""");
+        END;
+        
+        ; Perehod k sleduyushchemu znacheniyu
+        TauValue = TauValue + TauStep;
+    END;
+    
+    ; Vyvod itogovih rezultatov
+    DoCommand("SHOW """"");
+    DoCommand("SHOW ""=========================================""");
+    DoCommand("SHOW ""         ITOGI EKSPERIMENTA            """);
+    DoCommand("SHOW ""=========================================""");
+    
+    IF (MaxTau > 0) THEN 
+    BEGIN
+        Str = Polycatenate("SHOW ""Maksimalnoe tau = ", String(MaxTau), """");
+        DoCommand(Str);
+        
+        ; Povtornoe modelirovanie s naydennym tau
+        DoCommand("CLEAR OFF");
+        Str = Catenate("tau EQU ", String(MaxTau));
+        DoCommand(Str);
+        DoCommand("START 500,NP");
+        Utilization = SR$Smo;
+        
+        Str = Polycatenate("SHOW ""Koefficient zagruzki = ", String(Utilization), """");
+        DoCommand(Str);
+        Str = Polycatenate("SHOW ""Proverka: ", String(Utilization), " <= 0.65""");
+        DoCommand(Str);
+    END
+    ELSE
+    BEGIN
+        DoCommand("SHOW ""Ne naydeno podkhodyashchee znachenie tau""");
+    END;
+    
+    DoCommand("SHOW ""=========================================""");
+    DoCommand("SHOW """"");
+END;
+
