@@ -33,7 +33,6 @@ services:
   worker:
     build: .
     command: python3 /app/rq_worker/worker.py
-    container_name: rq_worker
     depends_on:
       - app
       - redis
