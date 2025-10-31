@@ -19,6 +19,8 @@ services:
       - "8001:8000"
     depends_on:
       - db
+    env_file:
+    - .env
 
   redis:
     image: redis:6-alpine
@@ -26,6 +28,7 @@ services:
       - "6381:6379"
     depends_on:
      - app
+     
 
   worker:
     build: .
@@ -36,7 +39,8 @@ services:
       - redis
     volumes:
       - ./rq_worker:/app/rq_worker
-
+    env_file:
+    - .env
 
 volumes:
   pgdata:
