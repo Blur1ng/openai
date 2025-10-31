@@ -9,8 +9,6 @@ from api.core.db_con            import Prompt, get_db
 from openai_.openai_client      import ChatGPTClient
 from openai_.deepseek_client    import DeepSeekClient
 from openai_.sonnet_client      import SonnetClient
-import redis
-from rq import Job
 from sqlalchemy import select
 
 ai_model = APIRouter(prefix="/api/v1/ai_model", tags=["ai_model"])
