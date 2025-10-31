@@ -209,23 +209,9 @@ async def send_task(request_data: request_form, db: AsyncSession):
         with prompt_file.open("r") as _file:
             prompt_content = _file.read()
         
-        # Сначала ставим задачу в очередь RQ
-        data = {
-            "prompt_data": request_data,
-            "prompt": prompt_content,
-            "prompt_name": prompt_file.stem,
-            "job_id": None  # заполним после создания job
-        }
-        job = q.enqueue(add_prompt_task, data)
-        
-        # Обновляем data с реальным job_id
-        data["job_id"] = job.id
-        # Обновляем задачу в Redis с правильным job_id
-        job = q.enqueue(add_prompt_task, data)
-        
-        # Создаём запись в БД
+        # Создаём запись в БД сначала (чтобы получить job_id)
         job_record = JobResult(
-            job_id=job.id,
+            job_id="",  # временно пустое, обновим после создания job
             ai_model=request_data.ai_model,
             model=request_data.model,
             prompt_name=prompt_file.stem,
@@ -233,6 +219,17 @@ async def send_task(request_data: request_form, db: AsyncSession):
             status='queued'
         )
         db.add(job_record)
+        await db.flush()  # получаем ID до commit
+        
+        data = {
+            "prompt_data": request_data,
+            "prompt": prompt_content,
+            "prompt_name": prompt_file.stem,
+            "job_id": None  
+        }
+        job = q.enqueue(add_prompt_task, data)
+        
+        job_record.job_id = job.id
         
         print(f"Задача поставлена в очередь: {job.id} (промпт: {prompt_file.name})")
         jobs.append({
