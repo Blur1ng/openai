@@ -11,16 +11,22 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/datax
       - ./db/init.sql:/docker-entrypoint-initdb.d/001-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   app:
     build: .
     container_name: fastapi-app
     ports:
-      - "8001:8001"
+      - "8001:8000"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     env_file:
-    - .env
+      - .env
 
   redis:
     image: redis:6-alpine
