@@ -72,7 +72,7 @@ async def create_prompt(prompt_data: PromptCreate, db: AsyncSession = Depends(ge
 async def get_all_prompts(is_active: Optional[bool] = None, db: AsyncSession = Depends(get_db)):
     """Получить список всех промптов"""
     
-    query = select(PromptTemplate.id, PromptTemplate.name, PromptTemplate.description).order_by(PromptTemplate.created_at.desc())
+    query = select(PromptTemplate).order_by(PromptTemplate.created_at.desc())
     
     if is_active is not None:
         query = query.where(PromptTemplate.is_active == is_active)
