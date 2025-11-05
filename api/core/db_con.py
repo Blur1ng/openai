@@ -9,7 +9,7 @@ from sqlalchemy import (
     DateTime,
     Boolean,
 )
-from datetime import datetime, UTC
+from datetime import datetime
 
 from .security import POSTGRES_PASSWORD, POSTGRES_DB, POSTGRES_USER, POSTGRES_PORT
 
@@ -51,8 +51,8 @@ class PromptTemplate(Base):
     content = Column(Text, nullable=False)
     description = Column(Text)
     is_active = Column(Boolean, default=True, index=True)
-    created_at = Column(DateTime, default=datetime.now(UTC))
-    updated_at = Column(DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC))
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 class JobResult(Base):
     __tablename__ = "job_results"
