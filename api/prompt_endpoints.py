@@ -68,21 +68,19 @@ async def create_prompt(prompt_data: PromptCreate, db: AsyncSession = Depends(ge
     return new_prompt
 
 
-@prompt_router.get("/", response_model=list[PromptResponse], dependencies=[Depends(verify_admin_token)])
+@prompt_router.get("/", response_model=PromptResponse, dependencies=[Depends(verify_admin_token)])
 async def get_all_prompts(is_active: Optional[bool] = None, db: AsyncSession = Depends(get_db)):
     """Получить список всех промптов"""
     
-    query = select(PromptTemplate).order_by(PromptTemplate.created_at.desc())
+    query = select(PromptTemplate.id, PromptTemplate.name, PromptTemplate.description).order_by(PromptTemplate.created_at.desc())
     
     if is_active is not None:
         query = query.where(PromptTemplate.is_active == is_active)
     
     result = await db.execute(query)
-    prompts = result.scalars().all()
-    prompts = prompts[0]
+    prompts = result.all()
 
-
-    return prompts["id"], prompts["name"], prompts["description"]
+    return [{p.id, p.name, p.description} for p in prompts]
 
 
 @prompt_router.get("/{prompt_name}", response_model=PromptResponse, dependencies=[Depends(verify_admin_token)])

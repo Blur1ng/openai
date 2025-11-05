@@ -84,5 +84,3 @@ async def get_job_status(job_id: str, db: AsyncSession = Depends(get_db)):
     
     return response
     
-@ai_model.get("/get/", status_code=status.HTTP_201_CREATED, dependencies=[Depends(verify_admin_token)])
-async def add_prompt_new(request_data: request_form, db: AsyncSession = Depends(get_db)):
