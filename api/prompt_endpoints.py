@@ -23,7 +23,6 @@ class PromptUpdate(BaseModel):
     description: Optional[str] = None
     is_active: Optional[bool] = None
 
-
 class PromptResponse(BaseModel):
     id: int
     name: str
@@ -80,8 +79,10 @@ async def get_all_prompts(is_active: Optional[bool] = None, db: AsyncSession = D
     
     result = await db.execute(query)
     prompts = result.scalars().all()
-    
-    return prompts
+    prompts = prompts[0]
+
+
+    return prompts["id"], prompts["name"], prompts["description"]
 
 
 @prompt_router.get("/{prompt_name}", response_model=PromptResponse, dependencies=[Depends(verify_admin_token)])
