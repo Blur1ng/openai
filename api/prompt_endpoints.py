@@ -78,9 +78,9 @@ async def get_all_prompts(is_active: Optional[bool] = None, db: AsyncSession = D
         query = query.where(PromptTemplate.is_active == is_active)
     
     result = await db.execute(query)
-    prompts = result.all()
+    prompts = result.scalar_one_or_none()
 
-    return [{p.id, p.name, p.description} for p in prompts]
+    return {prompts.id, prompts.name, prompts.description}
 
 
 @prompt_router.get("/{prompt_name}", response_model=PromptResponse, dependencies=[Depends(verify_admin_token)])
