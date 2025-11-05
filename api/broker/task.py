@@ -213,23 +213,9 @@ async def send_task(request_data: request_form, db: AsyncSession):
         with prompt_file.open("r") as _file:
             prompt_content = _file.read()
         
-        # Создаём RQ задачу сначала, чтобы получить job_id
-        data = {
-            "prompt_data": request_data,
-            "prompt": prompt_content,
-            "prompt_name": prompt_file.stem,
-            "job_id": None  # заполним ниже
-        }
-        job = q.enqueue(add_prompt_task, data)
-        
-        # Обновляем data с правильным job_id и пересоздаём задачу
-        data["job_id"] = job.id
-        job.cancel()  # отменяем первую задачу
-        job = q.enqueue(add_prompt_task, data)  # создаём новую с job_id
-        
-        # Создаём запись в БД с правильным job_id
+        # Создаём запись в БД сначала (чтобы получить job_id)
         job_record = JobResult(
-            job_id=job.id,
+            job_id="",  # временно пустое, обновим после создания job
             ai_model=request_data.ai_model,
             model=request_data.model,
             prompt_name=prompt_file.stem,
@@ -237,6 +223,24 @@ async def send_task(request_data: request_form, db: AsyncSession):
             status='queued'
         )
         db.add(job_record)
+        await db.flush()  # получаем ID до commit
+        
+        # Сначала создаём job без job_id, чтобы получить ID
+        data = {
+            "prompt_data": request_data,
+            "prompt": prompt_content,
+            "prompt_name": prompt_file.stem,
+            "job_id": None  
+        }
+        job = q.enqueue(add_prompt_task, data)
+        
+        # Теперь обновляем data с правильным job_id и пересоздаём job
+        data["job_id"] = job.id
+        job_record.job_id = job.id
+        
+        # Отменяем первую задачу и создаём новую с правильным job_id
+        job.cancel()
+        job = q.enqueue(add_prompt_task, data)
         
         print(f"Задача поставлена в очередь: {job.id} (промпт: {prompt_file.name})")
         jobs.append({
