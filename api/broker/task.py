@@ -31,6 +31,7 @@ def add_prompt_task(data: dict):
     
     # Используем синхронную сессию для воркера
     db = SyncSessionLocal()
+    
     try:
         # Обновляем статус на 'started'
         job_record = db.query(JobResult).filter(JobResult.job_id == job_id).first()
@@ -167,16 +168,7 @@ def add_prompt_task(data: dict):
         
     else:
         raise HTTPException(status_code=400, detail="Нет такой AI модели")
-        
-    # Создаём папку results если её нет (опционально, для бэкапа)
-    results_dir = Path("api/results")
-    results_dir.mkdir(exist_ok=True)
     
-    result_file = results_dir / f"{prompt_name}.md"
-    logging.info(f"File download to {result_file}")
-    
-    with result_file.open("w") as res:
-        res.write(texts.replace('\\n', '\n').replace('\\"', '"'))
     # Сохраняем результат в БД (синхронно)
     job_record = db.query(JobResult).filter(JobResult.job_id == job_id).first()
     
@@ -190,17 +182,20 @@ def add_prompt_task(data: dict):
         db.commit()
         logging.info(f"Job {job_id} saved to database successfully")
     
+    db.close()
+    
     return {
         "ai_model": prompt_data.ai_model,
         "model": prompt_data.model,
         "prompt_name": prompt_name,
-        "result_file": str(result_file),
         "request_statistics": {
             "prompt_tokens": total_usage["prompt_tokens"],
             "completion_tokens": total_usage["completion_tokens"],
             "total_tokens": total_usage["total_tokens"],
         }
     }
+    
+    
 
 
 async def send_task(request_data: request_form, db: AsyncSession):
@@ -208,7 +203,7 @@ async def send_task(request_data: request_form, db: AsyncSession):
     q = Queue('to_aimodel', connection=redis_conn)
     
     prompts_dir = Path("api/prompts")
-    prompt_files = list(prompts_dir.glob("*.md"))
+    prompt_files = list(prompts_dir.glob("*.txt"))
     
     if not prompt_files:
         raise HTTPException(status_code=500, detail="Не найдено ни одного промпта в папке api/prompts")
@@ -218,9 +213,23 @@ async def send_task(request_data: request_form, db: AsyncSession):
         with prompt_file.open("r") as _file:
             prompt_content = _file.read()
         
-        # Создаём запись в БД сначала (чтобы получить job_id)
+        # Создаём RQ задачу сначала, чтобы получить job_id
+        data = {
+            "prompt_data": request_data,
+            "prompt": prompt_content,
+            "prompt_name": prompt_file.stem,
+            "job_id": None  # заполним ниже
+        }
+        job = q.enqueue(add_prompt_task, data)
+        
+        # Обновляем data с правильным job_id и пересоздаём задачу
+        data["job_id"] = job.id
+        job.cancel()  # отменяем первую задачу
+        job = q.enqueue(add_prompt_task, data)  # создаём новую с job_id
+        
+        # Создаём запись в БД с правильным job_id
         job_record = JobResult(
-            job_id="",  # временно пустое, обновим после создания job
+            job_id=job.id,
             ai_model=request_data.ai_model,
             model=request_data.model,
             prompt_name=prompt_file.stem,
@@ -228,17 +237,6 @@ async def send_task(request_data: request_form, db: AsyncSession):
             status='queued'
         )
         db.add(job_record)
-        await db.flush()  # получаем ID до commit
-        
-        data = {
-            "prompt_data": request_data,
-            "prompt": prompt_content,
-            "prompt_name": prompt_file.stem,
-            "job_id": None  
-        }
-        job = q.enqueue(add_prompt_task, data)
-        
-        job_record.job_id = job.id
         
         print(f"Задача поставлена в очередь: {job.id} (промпт: {prompt_file.name})")
         jobs.append({
