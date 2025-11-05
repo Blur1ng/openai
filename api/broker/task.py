@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio     import AsyncSession
 from sqlalchemy                 import select, create_engine
 from sqlalchemy.orm             import sessionmaker, Session
 from datetime                   import datetime
+import asyncio
 
 import redis
 from rq import Queue
@@ -165,9 +166,17 @@ def add_prompt_task(data: dict):
             logging.info(f"Claude completed chunked request. Total tokens: {total_usage['total_tokens']}")
         
     else:
-            raise HTTPException(status_code=400, detail="Нет такой AI модели")
+        raise HTTPException(status_code=400, detail="Нет такой AI модели")
         
-
+    # Создаём папку results если её нет (опционально, для бэкапа)
+    results_dir = Path("api/results")
+    results_dir.mkdir(exist_ok=True)
+    
+    result_file = results_dir / f"{prompt_name}.md"
+    logging.info(f"File download to {result_file}")
+    
+    with result_file.open("w") as res:
+        res.write(texts.replace('\\n', '\n').replace('\\"', '"'))
     # Сохраняем результат в БД (синхронно)
     job_record = db.query(JobResult).filter(JobResult.job_id == job_id).first()
     
@@ -185,6 +194,7 @@ def add_prompt_task(data: dict):
         "ai_model": prompt_data.ai_model,
         "model": prompt_data.model,
         "prompt_name": prompt_name,
+        "result_file": str(result_file),
         "request_statistics": {
             "prompt_tokens": total_usage["prompt_tokens"],
             "completion_tokens": total_usage["completion_tokens"],
