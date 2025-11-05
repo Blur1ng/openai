@@ -68,9 +68,9 @@ async def create_prompt(prompt_data: PromptCreate, db: AsyncSession = Depends(ge
     return new_prompt
 
 
-@prompt_router.get("/", response_model=PromptResponse, dependencies=[Depends(verify_admin_token)])
+@prompt_router.get("/", dependencies=[Depends(verify_admin_token)])
 async def get_all_prompts(is_active: Optional[bool] = None, db: AsyncSession = Depends(get_db)):
-    """Получить список всех промптов"""
+    """Получить список всех промптов (только id, name, description)"""
     
     query = select(PromptTemplate).order_by(PromptTemplate.created_at.desc())
     
@@ -78,9 +78,17 @@ async def get_all_prompts(is_active: Optional[bool] = None, db: AsyncSession = D
         query = query.where(PromptTemplate.is_active == is_active)
     
     result = await db.execute(query)
-    prompts = result.scalar_one_or_none()
-
-    return {prompts.id, prompts.name, prompts.description}
+    prompts = result.scalars().all()
+    
+    # Возвращаем только нужные поля
+    return [
+        {
+            "id": prompt.id,
+            "name": prompt.name,
+            "description": prompt.description
+        }
+        for prompt in prompts
+    ]
 
 
 @prompt_router.get("/{prompt_name}", response_model=PromptResponse, dependencies=[Depends(verify_admin_token)])
