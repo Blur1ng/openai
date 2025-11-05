@@ -203,7 +203,7 @@ async def send_task(request_data: request_form, db: AsyncSession):
     q = Queue('to_aimodel', connection=redis_conn)
     
     prompts_dir = Path("api/prompts")
-    prompt_files = list(prompts_dir.glob("*.txt"))
+    prompt_files = list(prompts_dir.glob("*.md"))
     
     if not prompt_files:
         raise HTTPException(status_code=500, detail="Не найдено ни одного промпта в папке api/prompts")
