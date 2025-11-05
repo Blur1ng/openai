@@ -51,6 +51,56 @@ async def get_all_jobs(
         "total": len(jobs)
     }
 
+
+@ai_model.get("/results", dependencies=[Depends(verify_admin_token)])
+async def get_all_results(
+    db: AsyncSession = Depends(get_db),
+    limit: int = 50,
+    offset: int = 0
+):
+    """Получить список всех завершённых результатов (только ID)"""
+    query = select(JobResult).where(JobResult.status == 'finished').order_by(JobResult.completed_at.desc())
+    query = query.limit(limit).offset(offset)
+    result = await db.execute(query)
+    jobs = result.scalars().all()
+    
+    return [
+        {
+            "id": job.id,
+            "job_id": job.job_id
+        }
+        for job in jobs
+    ]
+
+
+@ai_model.get("/results/{result_id}", dependencies=[Depends(verify_admin_token)])
+async def get_result_by_id(result_id: int, db: AsyncSession = Depends(get_db)):
+    """Получить полную информацию о результате по ID"""
+    result = await db.execute(
+        select(JobResult).where(JobResult.id == result_id)
+    )
+    job_record = result.scalar_one_or_none()
+    
+    if not job_record:
+        raise HTTPException(status_code=404, detail=f"Результат с ID {result_id} не найден")
+    
+    return {
+        "id": job_record.id,
+        "job_id": job_record.job_id,
+        "status": job_record.status,
+        "ai_model": job_record.ai_model,
+        "model": job_record.model,
+        "prompt_name": job_record.prompt_name,
+        "request_code": job_record.request_code,
+        "result_text": job_record.result_text,
+        "prompt_tokens": job_record.prompt_tokens,
+        "completion_tokens": job_record.completion_tokens,
+        "total_tokens": job_record.total_tokens,
+        "error_message": job_record.error_message,
+        "created_at": job_record.created_at.isoformat() if job_record.created_at else None,
+        "completed_at": job_record.completed_at.isoformat() if job_record.completed_at else None
+    }
+
 @ai_model.get("/jobs/{job_id}", dependencies=[Depends(verify_admin_token)])
 async def get_job_status(job_id: str, db: AsyncSession = Depends(get_db)):
     """Получить статус и результат задачи из БД"""

@@ -91,7 +91,7 @@ async def get_all_prompts(is_active: Optional[bool] = None, db: AsyncSession = D
     ]
 
 
-@prompt_router.get("/{prompt_name}", response_model=PromptResponse, dependencies=[Depends(verify_admin_token)])
+@prompt_router.get("/{prompt_name}/", response_model=PromptResponse, dependencies=[Depends(verify_admin_token)])
 async def get_prompt(prompt_name: str, db: AsyncSession = Depends(get_db)):
     """Получить промпт по имени"""
     
@@ -162,4 +162,5 @@ async def delete_prompt(prompt_name: str, db: AsyncSession = Depends(get_db)):
     logging.info(f"Удалён промпт: {prompt_name}")
     
     return None
+
 
