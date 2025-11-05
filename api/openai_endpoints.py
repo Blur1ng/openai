@@ -52,27 +52,6 @@ async def get_all_jobs(
     }
 
 
-@ai_model.get("/results", dependencies=[Depends(verify_admin_token)])
-async def get_all_results(
-    db: AsyncSession = Depends(get_db),
-    limit: int = 50,
-    offset: int = 0
-):
-    """Получить список всех завершённых результатов (только ID)"""
-    query = select(JobResult).where(JobResult.status == 'finished').order_by(JobResult.completed_at.desc())
-    query = query.limit(limit).offset(offset)
-    result = await db.execute(query)
-    jobs = result.scalars().all()
-    
-    return [
-        {
-            "id": job.id,
-            "job_id": job.job_id
-        }
-        for job in jobs
-    ]
-
-
 @ai_model.get("/results/{result_id}", dependencies=[Depends(verify_admin_token)])
 async def get_result_by_id(result_id: int, db: AsyncSession = Depends(get_db)):
     """Получить полную информацию о результате по ID"""
@@ -100,6 +79,28 @@ async def get_result_by_id(result_id: int, db: AsyncSession = Depends(get_db)):
         "created_at": job_record.created_at.isoformat() if job_record.created_at else None,
         "completed_at": job_record.completed_at.isoformat() if job_record.completed_at else None
     }
+
+
+@ai_model.get("/results", dependencies=[Depends(verify_admin_token)])
+async def get_all_results(
+    db: AsyncSession = Depends(get_db),
+    limit: int = 50,
+    offset: int = 0
+):
+    """Получить список всех завершённых результатов (только ID)"""
+    query = select(JobResult).where(JobResult.status == 'finished').order_by(JobResult.completed_at.desc())
+    query = query.limit(limit).offset(offset)
+    result = await db.execute(query)
+    jobs = result.scalars().all()
+    
+    return [
+        {
+            "id": job.id,
+            "job_id": job.job_id
+        }
+        for job in jobs
+    ]
+
 
 @ai_model.get("/jobs/{job_id}", dependencies=[Depends(verify_admin_token)])
 async def get_job_status(job_id: str, db: AsyncSession = Depends(get_db)):
