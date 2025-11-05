@@ -16,6 +16,19 @@ CREATE TABLE request_data (
     model        TEXT NOT NULL
 );
 
+CREATE TABLE prompts (
+    id              BIGSERIAL PRIMARY KEY,
+    name            TEXT NOT NULL UNIQUE,
+    content         TEXT NOT NULL,
+    description     TEXT,
+    is_active       BOOLEAN DEFAULT true,
+    created_at      TIMESTAMP DEFAULT NOW(),
+    updated_at      TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX idx_prompts_name ON prompts(name);
+CREATE INDEX idx_prompts_is_active ON prompts(is_active);
+
 CREATE TABLE job_results (
     id              BIGSERIAL PRIMARY KEY,
     job_id          TEXT NOT NULL UNIQUE,

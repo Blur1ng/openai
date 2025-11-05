@@ -1,6 +1,6 @@
 import logging
 from fastapi                    import HTTPException
-from api.core.db_con            import RequestData, JobResult, async_session
+from api.core.db_con            import RequestData, JobResult, PromptTemplate, async_session
 from openai_.openai_client      import ChatGPTClient
 from openai_.deepseek_client    import DeepSeekClient
 from openai_.sonnet_client      import SonnetClient
@@ -16,7 +16,7 @@ import asyncio
 import redis
 from rq import Queue
 
-# Создаём синхронный engine для воркеров
+# синхронный engine для воркеров
 from api.core.security import POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB, POSTGRES_PORT
 SYNC_DATABASE_URL = f"postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}@pg:{POSTGRES_PORT}/{POSTGRES_DB}"
 sync_engine = create_engine(SYNC_DATABASE_URL)
@@ -28,12 +28,10 @@ def add_prompt_task(data: dict):
     prompt: str = data["prompt"]
     prompt_name: str = data.get("prompt_name", "result")
     job_id: str = data.get("job_id")
-    
-    # Используем синхронную сессию для воркера
+
     db = SyncSessionLocal()
     
     try:
-        # Обновляем статус на 'started'
         job_record = db.query(JobResult).filter(JobResult.job_id == job_id).first()
         if job_record:
             job_record.status = 'started'
@@ -169,7 +167,7 @@ def add_prompt_task(data: dict):
     else:
         raise HTTPException(status_code=400, detail="Нет такой AI модели")
     
-    # Сохраняем результат в БД (синхронно)
+    #    Сохраняем результат в БД (синхронно)
     job_record = db.query(JobResult).filter(JobResult.job_id == job_id).first()
     
     if job_record:
@@ -195,57 +193,51 @@ def add_prompt_task(data: dict):
         }
     }
     
-    
-
 
 async def send_task(request_data: request_form, db: AsyncSession):
     redis_conn = redis.Redis(host='redis', port=6379)
     q = Queue('to_aimodel', connection=redis_conn)
     
-    prompts_dir = Path("api/prompts")
-    prompt_files = list(prompts_dir.glob("*.md"))
+    # Загружаем все активные промпты из БД
+    result = await db.execute(
+        select(PromptTemplate).where(PromptTemplate.is_active == True)
+    )
+    prompts = result.scalars().all()
     
-    if not prompt_files:
-        raise HTTPException(status_code=500, detail="Не найдено ни одного промпта в папке api/prompts")
+    if not prompts:
+        raise HTTPException(status_code=500, detail="Не найдено ни одного активного промпта в БД")
     
     jobs = []
-    for prompt_file in prompt_files:
-        with prompt_file.open("r") as _file:
-            prompt_content = _file.read()
-        
-        # Создаём запись в БД сначала (чтобы получить job_id)
+    for prompt in prompts:
         job_record = JobResult(
-            job_id="",  # временно пустое, обновим после создания job
+            job_id="", 
             ai_model=request_data.ai_model,
             model=request_data.model,
-            prompt_name=prompt_file.stem,
+            prompt_name=prompt.name,
             request_code=request_data.request,
             status='queued'
         )
         db.add(job_record)
-        await db.flush()  # получаем ID до commit
+        await db.flush() 
         
-        # Сначала создаём job без job_id, чтобы получить ID
         data = {
             "prompt_data": request_data,
-            "prompt": prompt_content,
-            "prompt_name": prompt_file.stem,
+            "prompt": prompt.content,
+            "prompt_name": prompt.name,
             "job_id": None  
         }
         job = q.enqueue(add_prompt_task, data)
         
-        # Теперь обновляем data с правильным job_id и пересоздаём job
         data["job_id"] = job.id
         job_record.job_id = job.id
         
-        # Отменяем первую задачу и создаём новую с правильным job_id
         job.cancel()
         job = q.enqueue(add_prompt_task, data)
         
-        print(f"Задача поставлена в очередь: {job.id} (промпт: {prompt_file.name})")
+        print(f"Задача поставлена в очередь: {job.id} (промпт: {prompt.name})")
         jobs.append({
             "job_id": job.id,
-            "prompt_name": prompt_file.stem
+            "prompt_name": prompt.name
         })
     
     await db.commit()
