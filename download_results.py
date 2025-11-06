@@ -14,21 +14,23 @@ class ResultDownloader:
         """
         self.server_url = server_url.rstrip('/')
         self.headers = {
-            'Authorization': f'Bearer {token}',
+            'X-Admin-Token': token,
             'Content-Type': 'application/json'
         }
     
     def get_active_prompts_count(self) -> int:
         """Получает количество активных промптов"""
-        url = f"{self.server_url}/api/v1/prompts/?is_active=true"
+        url = f"{self.server_url}/api/v1/prompts/"
         
         try:
-            response = requests.get(url, headers=self.headers)
+            response = requests.get(url, headers=self.headers, params={"is_active": True})
             response.raise_for_status()
             prompts = response.json()
             return len(prompts)
         except requests.exceptions.RequestException as e:
             print(f"❌ Ошибка при получении списка промптов: {e}")
+            if hasattr(e.response, 'text'):
+                print(f"   Ответ сервера: {e.response.text}")
             sys.exit(1)
     
     def get_latest_results(self, limit: int) -> List[Dict]:
