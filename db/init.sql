@@ -32,6 +32,7 @@ CREATE INDEX idx_prompts_is_active ON prompts(is_active);
 CREATE TABLE job_results (
     id              BIGSERIAL PRIMARY KEY,
     job_id          TEXT NOT NULL UNIQUE,
+    batch_id        TEXT NOT NULL,
     ai_model        TEXT NOT NULL,
     model           TEXT NOT NULL,
     prompt_name     TEXT NOT NULL,
@@ -47,6 +48,7 @@ CREATE TABLE job_results (
 );
 
 CREATE INDEX idx_job_results_job_id ON job_results(job_id);
+CREATE INDEX idx_job_results_batch_id ON job_results(batch_id);
 CREATE INDEX idx_job_results_created_at ON job_results(created_at);
 
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO postgres;

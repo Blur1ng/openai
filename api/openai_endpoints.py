@@ -66,6 +66,7 @@ async def get_result_by_id(result_id: int, db: AsyncSession = Depends(get_db)):
     return {
         "id": job_record.id,
         "job_id": job_record.job_id,
+        "batch_id": job_record.batch_id,
         "status": job_record.status,
         "ai_model": job_record.ai_model,
         "model": job_record.model,

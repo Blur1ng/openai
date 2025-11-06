@@ -59,6 +59,7 @@ class JobResult(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     job_id = Column(String, unique=True, nullable=False, index=True)
+    batch_id = Column(String, nullable=False, index=True)
     ai_model = Column(String, nullable=False)
     model = Column(String, nullable=False)
     prompt_name = Column(String, nullable=False)

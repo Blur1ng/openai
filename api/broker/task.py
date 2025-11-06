@@ -12,6 +12,7 @@ from sqlalchemy                 import select, create_engine
 from sqlalchemy.orm             import sessionmaker, Session
 from datetime                   import datetime
 import asyncio
+import uuid
 
 import redis
 from rq import Queue
@@ -28,6 +29,7 @@ def add_prompt_task(data: dict):
     prompt: str = data["prompt"]
     prompt_name: str = data.get("prompt_name", "result")
     job_id: str = data.get("job_id")
+    batch_id: str = data.get("batch_id")
 
     db = SyncSessionLocal()
     
@@ -198,6 +200,9 @@ async def send_task(request_data: request_form, db: AsyncSession):
     redis_conn = redis.Redis(host='redis', port=6379)
     q = Queue('to_aimodel', connection=redis_conn)
     
+    # Генерируем уникальный batch_id для всего батча задач
+    batch_id = str(uuid.uuid4())
+    
     # Загружаем все активные промпты из БД
     result = await db.execute(
         select(PromptTemplate).where(PromptTemplate.is_active == True)
@@ -210,7 +215,8 @@ async def send_task(request_data: request_form, db: AsyncSession):
     jobs = []
     for prompt in prompts:
         job_record = JobResult(
-            job_id="", 
+            job_id="",
+            batch_id=batch_id,
             ai_model=request_data.ai_model,
             model=request_data.model,
             prompt_name=prompt.name,
@@ -224,7 +230,8 @@ async def send_task(request_data: request_form, db: AsyncSession):
             "prompt_data": request_data,
             "prompt": prompt.content,
             "prompt_name": prompt.name,
-            "job_id": None  
+            "job_id": None,
+            "batch_id": batch_id
         }
         job = q.enqueue(add_prompt_task, data)
         
@@ -234,7 +241,7 @@ async def send_task(request_data: request_form, db: AsyncSession):
         job.cancel()
         job = q.enqueue(add_prompt_task, data)
         
-        print(f"Задача поставлена в очередь: {job.id} (промпт: {prompt.name})")
+        print(f"Задача поставлена в очередь: {job.id} (промпт: {prompt.name}, batch: {batch_id})")
         jobs.append({
             "job_id": job.id,
             "prompt_name": prompt.name
@@ -242,5 +249,5 @@ async def send_task(request_data: request_form, db: AsyncSession):
     
     await db.commit()
     
-    return {"jobs": jobs, "total": len(jobs)}
+    return {"jobs": jobs, "total": len(jobs), "batch_id": batch_id}
             
