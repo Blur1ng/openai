@@ -51,6 +51,23 @@ CREATE INDEX idx_job_results_job_id ON job_results(job_id);
 CREATE INDEX idx_job_results_batch_id ON job_results(batch_id);
 CREATE INDEX idx_job_results_created_at ON job_results(created_at);
 
+CREATE TABLE batch_status (
+    id              BIGSERIAL PRIMARY KEY,
+    batch_id        TEXT NOT NULL UNIQUE,
+    total_jobs      INTEGER NOT NULL,
+    completed_jobs  INTEGER DEFAULT 0,
+    failed_jobs     INTEGER DEFAULT 0,
+    status          TEXT NOT NULL DEFAULT 'processing',
+    callback_url    TEXT,
+    callback_sent   BOOLEAN DEFAULT FALSE,
+    created_at      TIMESTAMP DEFAULT NOW(),
+    completed_at    TIMESTAMP
+);
+
+CREATE INDEX idx_batch_status_batch_id ON batch_status(batch_id);
+CREATE INDEX idx_batch_status_status ON batch_status(status);
+CREATE INDEX idx_batch_status_created_at ON batch_status(created_at);
+
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO postgres;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON TABLES TO postgres;
 
