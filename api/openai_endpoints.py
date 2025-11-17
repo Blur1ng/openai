@@ -14,7 +14,8 @@ from sqlalchemy import select
 ai_model = APIRouter(prefix="/api/v1/ai_model", tags=["ai_model"])
 
 #new version(send only code(promt from files on the Server))
-@ai_model.post("/send_prompt/", status_code=status.HTTP_201_CREATED, dependencies=[Depends(verify_admin_token)])
+# TODO: Вернуть проверку авторизации после добавления системы регистрации
+@ai_model.post("/send_prompt/", status_code=status.HTTP_201_CREATED)
 async def add_prompt_new(request_data: request_form, db: AsyncSession = Depends(get_db)):
     return await send_task(request_data, db)
 
@@ -103,7 +104,8 @@ async def get_all_results(
     ]
 
 
-@ai_model.get("/batch/{batch_id}", dependencies=[Depends(verify_admin_token)])
+# TODO: Вернуть проверку авторизации после добавления системы регистрации
+@ai_model.get("/batch/{batch_id}")
 async def get_batch_status(batch_id: str, db: AsyncSession = Depends(get_db)):
     """Получить статус всего батча задач"""
     # Получаем информацию о батче
@@ -144,7 +146,8 @@ async def get_batch_status(batch_id: str, db: AsyncSession = Depends(get_db)):
     }
 
 
-@ai_model.get("/jobs/{job_id}", dependencies=[Depends(verify_admin_token)])
+# TODO: Вернуть проверку авторизации после добавления системы регистрации
+@ai_model.get("/jobs/{job_id}")
 async def get_job_status(job_id: str, db: AsyncSession = Depends(get_db)):
     """Получить статус и результат задачи из БД"""
     result = await db.execute(

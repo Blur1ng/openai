@@ -17,27 +17,21 @@ const progressBarFill = document.getElementById('progressBarFill');
 const resultsGrid = document.getElementById('resultsGrid');
 const downloadAllBtn = document.getElementById('downloadAllBtn');
 const errorMessage = document.getElementById('errorMessage');
-const apiUrl = document.getElementById('apiUrl');
-const apiToken = document.getElementById('apiToken');
 const aiModel = document.getElementById('aiModel');
 const model = document.getElementById('model');
 
 // Загрузка сохраненных настроек из localStorage
 window.addEventListener('DOMContentLoaded', () => {
-    const savedApiUrl = localStorage.getItem('apiUrl');
-    const savedApiToken = localStorage.getItem('apiToken');
     const savedAiModel = localStorage.getItem('aiModel');
     const savedModel = localStorage.getItem('model');
     
-    if (savedApiUrl) apiUrl.value = savedApiUrl;
-    if (savedApiToken) apiToken.value = savedApiToken;
     if (savedAiModel) aiModel.value = savedAiModel;
     if (savedModel) model.value = savedModel;
+    
+    updateModelOptions();
 });
 
 // Сохранение настроек при изменении
-apiUrl.addEventListener('change', () => localStorage.setItem('apiUrl', apiUrl.value));
-apiToken.addEventListener('change', () => localStorage.setItem('apiToken', apiToken.value));
 aiModel.addEventListener('change', () => {
     localStorage.setItem('aiModel', aiModel.value);
     updateModelOptions();
@@ -126,17 +120,6 @@ function formatFileSize(bytes) {
 submitBtn.addEventListener('click', async () => {
     if (!selectedFile) return;
     
-    // Валидация
-    if (!apiUrl.value) {
-        showError('Пожалуйста, укажите API URL');
-        return;
-    }
-    
-    if (!apiToken.value) {
-        showError('Пожалуйста, укажите Admin Token');
-        return;
-    }
-    
     submitBtn.disabled = true;
     submitBtn.innerHTML = 'Отправка... <div class="spinner"></div>';
     hideError();
@@ -145,12 +128,11 @@ submitBtn.addEventListener('click', async () => {
         // Читаем содержимое файла
         const fileContent = await readFileContent(selectedFile);
         
-        // Отправляем на API
-        const response = await fetch(`${apiUrl.value}/api/v1/ai_model/send_prompt`, {
+        // Отправляем на API (используем относительный путь)
+        const response = await fetch('/api/v1/ai_model/send_prompt/', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiToken.value}`
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify({
                 ai_model: aiModel.value,
@@ -160,7 +142,7 @@ submitBtn.addEventListener('click', async () => {
         });
         
         if (!response.ok) {
-            const errorData = await response.json();
+            const errorData = await response.json().catch(() => ({ detail: `HTTP ${response.status}: ${response.statusText}` }));
             throw new Error(errorData.detail || 'Ошибка при отправке запроса');
         }
         
@@ -233,14 +215,7 @@ async function checkBatchStatus() {
     if (!currentBatchId) return;
     
     try {
-        const response = await fetch(
-            `${apiUrl.value}/api/v1/ai_model/batch/${currentBatchId}`,
-            {
-                headers: {
-                    'Authorization': `Bearer ${apiToken.value}`
-                }
-            }
-        );
+        const response = await fetch(`/api/v1/ai_model/batch/${currentBatchId}`);
         
         if (!response.ok) {
             throw new Error('Ошибка при получении статуса');
@@ -299,14 +274,7 @@ async function updateJobCard(job) {
         
         // Получаем детальную информацию
         try {
-            const response = await fetch(
-                `${apiUrl.value}/api/v1/ai_model/jobs/${job.job_id}`,
-                {
-                    headers: {
-                        'Authorization': `Bearer ${apiToken.value}`
-                    }
-                }
-            );
+            const response = await fetch(`/api/v1/ai_model/jobs/${job.job_id}`);
             
             if (response.ok) {
                 const details = await response.json();
@@ -344,14 +312,7 @@ resultsGrid.addEventListener('click', async (e) => {
 // Скачивание результата
 async function downloadResult(jobId) {
     try {
-        const response = await fetch(
-            `${apiUrl.value}/api/v1/ai_model/jobs/${jobId}`,
-            {
-                headers: {
-                    'Authorization': `Bearer ${apiToken.value}`
-                }
-            }
-        );
+        const response = await fetch(`/api/v1/ai_model/jobs/${jobId}`);
         
         if (!response.ok) {
             throw new Error('Ошибка при получении результата');
@@ -384,14 +345,7 @@ downloadAllBtn.addEventListener('click', async () => {
     downloadAllBtn.innerHTML = 'Скачивание... <div class="spinner"></div>';
     
     try {
-        const response = await fetch(
-            `${apiUrl.value}/api/v1/ai_model/batch/${currentBatchId}`,
-            {
-                headers: {
-                    'Authorization': `Bearer ${apiToken.value}`
-                }
-            }
-        );
+        const response = await fetch(`/api/v1/ai_model/batch/${currentBatchId}`);
         
         if (!response.ok) {
             throw new Error('Ошибка при получении результатов');
