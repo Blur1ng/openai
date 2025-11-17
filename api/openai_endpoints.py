@@ -1,7 +1,7 @@
 import logging
 from fastapi                    import APIRouter, Depends, status, HTTPException
 from sqlalchemy.ext.asyncio     import AsyncSession
-from api.core.db_con            import get_db, JobResult
+from api.core.db_con            import get_db, JobResult, BatchStatus
 from api.schemas.openapi_schema import prompt_form, request_form
 from api.core.security          import SECRET_KEY_OPENAI, SECRET_KEY_DEEPSEEK, SECRET_KEY_SONNET, verify_admin_token
 from api.broker.task            import send_task
@@ -103,6 +103,47 @@ async def get_all_results(
     ]
 
 
+@ai_model.get("/batch/{batch_id}", dependencies=[Depends(verify_admin_token)])
+async def get_batch_status(batch_id: str, db: AsyncSession = Depends(get_db)):
+    """Получить статус всего батча задач"""
+    # Получаем информацию о батче
+    batch_result = await db.execute(
+        select(BatchStatus).where(BatchStatus.batch_id == batch_id)
+    )
+    batch = batch_result.scalar_one_or_none()
+    
+    if not batch:
+        raise HTTPException(status_code=404, detail="Батч не найден")
+    
+    # Получаем все задачи этого батча
+    jobs_result = await db.execute(
+        select(JobResult).where(JobResult.batch_id == batch_id).order_by(JobResult.created_at)
+    )
+    jobs = jobs_result.scalars().all()
+    
+    return {
+        "batch_id": batch.batch_id,
+        "status": batch.status,
+        "total_jobs": batch.total_jobs,
+        "completed_jobs": batch.completed_jobs,
+        "failed_jobs": batch.failed_jobs,
+        "created_at": batch.created_at.isoformat() if batch.created_at else None,
+        "completed_at": batch.completed_at.isoformat() if batch.completed_at else None,
+        "jobs": [
+            {
+                "job_id": job.job_id,
+                "prompt_name": job.prompt_name,
+                "status": job.status,
+                "total_tokens": job.total_tokens,
+                "error_message": job.error_message,
+                "created_at": job.created_at.isoformat() if job.created_at else None,
+                "completed_at": job.completed_at.isoformat() if job.completed_at else None
+            }
+            for job in jobs
+        ]
+    }
+
+
 @ai_model.get("/jobs/{job_id}", dependencies=[Depends(verify_admin_token)])
 async def get_job_status(job_id: str, db: AsyncSession = Depends(get_db)):
     """Получить статус и результат задачи из БД"""
@@ -135,4 +176,3 @@ async def get_job_status(job_id: str, db: AsyncSession = Depends(get_db)):
         response["error"] = job_record.error_message
     
     return response
-    

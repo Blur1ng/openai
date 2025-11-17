@@ -74,6 +74,21 @@ class JobResult(Base):
     completed_at = Column(DateTime)
 
 
+class BatchStatus(Base):
+    __tablename__ = "batch_status"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    batch_id = Column(String, unique=True, nullable=False, index=True)
+    total_jobs = Column(Integer, nullable=False)
+    completed_jobs = Column(Integer, default=0)
+    failed_jobs = Column(Integer, default=0)
+    status = Column(String, nullable=False, default='processing')
+    callback_url = Column(Text)
+    callback_sent = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    completed_at = Column(DateTime)
+
+
 async def get_db():
     async with async_session() as db:
         yield db

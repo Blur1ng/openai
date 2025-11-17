@@ -14,7 +14,7 @@ class ResultDownloader:
         """
         self.server_url = server_url.rstrip('/')
         self.headers = {
-            'X-Admin-Token': token,
+            'Authorization': f'Bearer {token}',
             'Content-Type': 'application/json'
         }
     

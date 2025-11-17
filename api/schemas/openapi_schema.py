@@ -15,5 +15,6 @@ class request_form(BaseModel):
     ai_model: str
     request: str
     model: str
+    callback_url: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
