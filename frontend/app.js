@@ -225,13 +225,16 @@ async function checkBatchStatus() {
         updateProgress(data);
         
         // Если все завершено, останавливаем polling
-        if (data.status === 'completed' || data.status === 'failed') {
+        if (data.status === 'completed' || data.status === 'completed_with_errors') {
             clearInterval(pollingInterval);
             submitBtn.disabled = false;
             submitBtn.innerHTML = 'Получить документацию';
             
-            if (data.status === 'completed') {
+            // Показываем кнопку скачивания объединенного файла если он есть
+            if (data.has_merged_result && data.merged_job_id) {
                 downloadAllBtn.style.display = 'block';
+                // Сохраняем merged_job_id для функции скачивания
+                downloadAllBtn.dataset.mergedJobId = data.merged_job_id;
             }
         }
         
@@ -337,7 +340,7 @@ async function downloadResult(jobId) {
     }
 }
 
-// Скачивание всех результатов
+// Скачивание всех результатов (объединенный файл)
 downloadAllBtn.addEventListener('click', async () => {
     if (!currentBatchId) return;
     
@@ -345,30 +348,56 @@ downloadAllBtn.addEventListener('click', async () => {
     downloadAllBtn.innerHTML = 'Скачивание... <div class="spinner"></div>';
     
     try {
-        const response = await fetch(`/api/v1/ai_model/batch/${currentBatchId}`);
+        // Проверяем наличие merged_job_id в dataset
+        const mergedJobId = downloadAllBtn.dataset.mergedJobId;
         
-        if (!response.ok) {
-            throw new Error('Ошибка при получении результатов');
-        }
-        
-        const batchData = await response.json();
-        const completedJobs = batchData.jobs.filter(job => job.status === 'finished');
-        
-        // Скачиваем каждый результат
-        for (const job of completedJobs) {
-            await downloadResult(job.job_id);
-            // Небольшая задержка между скачиваниями
-            await new Promise(resolve => setTimeout(resolve, 300));
+        if (mergedJobId) {
+            // Скачиваем объединенный файл
+            const response = await fetch(`/api/v1/ai_model/jobs/${mergedJobId}`);
+            
+            if (!response.ok) {
+                throw new Error('Ошибка при получении объединенного результата');
+            }
+            
+            const data = await response.json();
+            
+            // Создаем и скачиваем файл
+            const blob = new Blob([data.result || data.result_text], { type: 'text/markdown' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `documentation_${currentBatchId}.md`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        } else {
+            // Фолбэк: скачиваем каждый результат отдельно
+            const response = await fetch(`/api/v1/ai_model/batch/${currentBatchId}`);
+            
+            if (!response.ok) {
+                throw new Error('Ошибка при получении результатов');
+            }
+            
+            const batchData = await response.json();
+            const completedJobs = batchData.jobs.filter(job => job.status === 'finished');
+            
+            // Скачиваем каждый результат
+            for (const job of completedJobs) {
+                await downloadResult(job.job_id);
+                // Небольшая задержка между скачиваниями
+                await new Promise(resolve => setTimeout(resolve, 300));
+            }
         }
         
         downloadAllBtn.disabled = false;
-        downloadAllBtn.innerHTML = '📥 Скачать все результаты';
+        downloadAllBtn.innerHTML = '📥 Скачать документацию';
         
     } catch (error) {
         console.error('Download all error:', error);
         showError('Ошибка при скачивании результатов');
         downloadAllBtn.disabled = false;
-        downloadAllBtn.innerHTML = '📥 Скачать все результаты';
+        downloadAllBtn.innerHTML = '📥 Скачать документацию';
     }
 });
 

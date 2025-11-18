@@ -1,177 +1,139 @@
-import argparse
+#!/usr/bin/env python3
+"""
+Скрипт для скачивания объединенной документации из последнего батча
+Использование: python download_results.py
+"""
 import requests
 import sys
 from pathlib import Path
-from typing import List, Dict, Optional
+from datetime import datetime
 
+# Настройки API
+API_URL = "http://185.130.224.177:8001"
+API_TOKEN = "your_admin_token_here"  # Не используется если авторизация отключена
 
-class ResultDownloader:
-    def __init__(self, server_url: str, token: str):
-        """
-        Args:
-            server_url: URL сервера (например, http://185.130.224.177:8001)
-            token: Токен для авторизации
-        """
-        self.server_url = server_url.rstrip('/')
-        self.headers = {
-            'Authorization': f'Bearer {token}',
-            'Content-Type': 'application/json'
-        }
-    
-    def get_active_prompts_count(self) -> int:
-        """Получает количество активных промптов"""
-        url = f"{self.server_url}/api/v1/prompts/"
+def get_latest_batch_id():
+    """Получает ID последнего батча"""
+    try:
+        # Получаем информацию о количестве активных промптов
+        response = requests.get(
+            f"{API_URL}/api/v1/prompts/",
+            params={"is_active": True},
+            headers={"Authorization": f"Bearer {API_TOKEN}"}
+        )
+        response.raise_for_status()
+        prompts = response.json()
         
-        try:
-            response = requests.get(url, headers=self.headers, params={"is_active": True})
-            response.raise_for_status()
-            prompts = response.json()
-            return len(prompts)
-        except requests.exceptions.RequestException as e:
-            print(f"❌ Ошибка при получении списка промптов: {e}")
-            if hasattr(e.response, 'text'):
-                print(f"   Ответ сервера: {e.response.text}")
-            sys.exit(1)
-    
-    def get_latest_results(self, limit: int) -> List[Dict]:
-        """Получает список ID последних результатов"""
-        url = f"{self.server_url}/api/v1/ai_model/results?limit={limit}"
+        print(f"Найдено активных промптов: {len(prompts)}")
         
-        try:
-            response = requests.get(url, headers=self.headers)
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            print(f"❌ Ошибка при получении списка результатов: {e}")
-            sys.exit(1)
-    
-    def get_result_by_id(self, result_id: int) -> Dict:
-        """Получает полную информацию о результате по ID"""
-        url = f"{self.server_url}/api/v1/ai_model/results/{result_id}"
+        # Здесь можно было бы получить список батчей, но такого endpoint нет
+        # Поэтому просим пользователя ввести batch_id вручную
+        return None
         
-        try:
-            response = requests.get(url, headers=self.headers)
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            print(f"❌ Ошибка при получении результата {result_id}: {e}")
-            return None
-    
-    def find_latest_batch_id(self, results: List[Dict]) -> Optional[str]:
-        """Находит batch_id самого последнего батча"""
-        if not results:
-            return None
-        
-        # Получаем полную информацию о первом результате (самом свежем)
-        first_result_id = results[0]['id']
-        first_result = self.get_result_by_id(first_result_id)
-        
-        if not first_result:
-            return None
-        
-        return first_result.get('batch_id')
-    
-    def download_batch_results(self, output_dir: Path):
-        """Основная функция для загрузки результатов"""
-        print("🚀 Начинаем загрузку результатов...")
-        
-        # Шаг 1: Получаем количество активных промптов
-        prompts_count = self.get_active_prompts_count()
-        print(f"📊 Количество активных промптов: {prompts_count}")
-        
-        # Шаг 2: Получаем список последних N результатов
-        print(f"🔍 Запрашиваем последние {prompts_count} результатов...")
-        results = self.get_latest_results(limit=prompts_count)
-        
-        if not results:
-            print("⚠️  Нет доступных результатов")
-            return
-        
-        print(f"✅ Получено {len(results)} результатов")
-        
-        # Шаг 3: Находим batch_id последнего батча
-        latest_batch_id = self.find_latest_batch_id(results)
-        
-        if not latest_batch_id:
-            print("❌ Не удалось определить batch_id последнего батча")
-            return
-        
-        print(f"🎯 Batch ID последнего батча: {latest_batch_id}")
-        
-        # Шаг 4: Создаём директорию для результатов
-        output_dir.mkdir(parents=True, exist_ok=True)
-        print(f"📁 Результаты будут сохранены в: {output_dir.absolute()}")
-        
-        # Шаг 5: Загружаем и сохраняем результаты из последнего батча
-        saved_count = 0
-        
-        for result_item in results:
-            result_id = result_item['id']
-            
-            # Получаем полную информацию о результате
-            full_result = self.get_result_by_id(result_id)
-            
-            if not full_result:
-                continue
-            
-            # Проверяем, что результат относится к последнему батчу
-            if full_result.get('batch_id') != latest_batch_id:
-                continue
-            
-            # Проверяем, что результат завершён
-            if full_result.get('status') != 'finished':
-                print(f"⏭️  Пропускаем результат {result_id} (статус: {full_result.get('status')})")
-                continue
-            
-            # Сохраняем результат в файл
-            prompt_name = full_result.get('prompt_name', f'result_{result_id}')
-            result_text = full_result.get('result_text', '')
-            
-            # Формируем имя файла (заменяем небезопасные символы)
-            safe_filename = "".join(c if c.isalnum() or c in ('_', '-') else '_' for c in prompt_name)
-            file_path = output_dir / f"{safe_filename}.md"
-            
-            # Записываем файл
-            try:
-                file_path.write_text(result_text, encoding='utf-8')
-                print(f"✅ Сохранено: {file_path.name}")
-                saved_count += 1
-            except Exception as e:
-                print(f"❌ Ошибка при сохранении {file_path.name}: {e}")
-        
-        print(f"\n🎉 Готово! Сохранено файлов: {saved_count}")
+    except requests.exceptions.RequestException as e:
+        print(f"Ошибка при получении информации о промптах: {e}")
+        return None
 
+def get_batch_status(batch_id):
+    """Получает статус батча"""
+    try:
+        response = requests.get(
+            f"{API_URL}/api/v1/ai_model/batch/{batch_id}"
+        )
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        print(f"Ошибка при получении статуса батча: {e}")
+        return None
+
+def download_merged_result(batch_id, output_dir="results"):
+    """Скачивает объединенный результат батча"""
+    print(f"\nПолучение информации о батче {batch_id}...")
+    
+    batch_data = get_batch_status(batch_id)
+    if not batch_data:
+        print("Не удалось получить информацию о батче")
+        return False
+    
+    print(f"Статус батча: {batch_data['status']}")
+    print(f"Завершено задач: {batch_data['completed_jobs']}/{batch_data['total_jobs']}")
+    print(f"Ошибок: {batch_data['failed_jobs']}")
+    
+    if not batch_data.get('has_merged_result'):
+        print("\n❌ Объединенный результат еще не готов")
+        print("Батч должен быть полностью завершен для создания объединенного файла")
+        return False
+    
+    merged_job_id = batch_data.get('merged_job_id')
+    if not merged_job_id:
+        print("\n❌ ID объединенного результата не найден")
+        return False
+    
+    print(f"\n✅ Объединенный результат найден (ID: {merged_job_id})")
+    
+    # Скачиваем объединенный результат
+    try:
+        response = requests.get(
+            f"{API_URL}/api/v1/ai_model/jobs/{merged_job_id}"
+        )
+        response.raise_for_status()
+        result_data = response.json()
+        
+        # Создаем директорию для результатов
+        output_path = Path(output_dir)
+        output_path.mkdir(exist_ok=True)
+        
+        # Формируем имя файла
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"documentation_{batch_id[:8]}_{timestamp}.md"
+        filepath = output_path / filename
+        
+        # Сохраняем файл
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.write(result_data['result_text'])
+        
+        print(f"\n✅ Документация сохранена: {filepath}")
+        
+        # Выводим статистику
+        stats = result_data.get('statistics', {})
+        if stats:
+            print(f"\n📊 Статистика:")
+            print(f"   - Токенов (prompt): {stats.get('prompt_tokens', 0):,}")
+            print(f"   - Токенов (completion): {stats.get('completion_tokens', 0):,}")
+            print(f"   - Всего токенов: {stats.get('total_tokens', 0):,}")
+        
+        return True
+        
+    except requests.exceptions.RequestException as e:
+        print(f"\n❌ Ошибка при скачивании результата: {e}")
+        return False
+    except Exception as e:
+        print(f"\n❌ Ошибка при сохранении файла: {e}")
+        return False
 
 def main():
-    parser = argparse.ArgumentParser(
-        description='Загрузка результатов AI обработки с сервера'
-    )
-    parser.add_argument(
-        '--server',
-        required=True,
-        help='URL сервера (например, http://185.130.224.177:8001)'
-    )
-    parser.add_argument(
-        '--token',
-        required=True,
-        help='Токен для авторизации'
-    )
-    parser.add_argument(
-        '--output-dir',
-        default='results',
-        help='Директория для сохранения результатов (по умолчанию: results/)'
-    )
+    print("=" * 60)
+    print("Скачивание объединенной документации")
+    print("=" * 60)
     
-    args = parser.parse_args()
+    # Получаем batch_id
+    if len(sys.argv) > 1:
+        batch_id = sys.argv[1]
+    else:
+        batch_id = input("\nВведите batch_id: ").strip()
     
-    # Создаём объект загрузчика
-    downloader = ResultDownloader(args.server, args.token)
+    if not batch_id:
+        print("❌ Batch ID не указан")
+        sys.exit(1)
     
-    # Запускаем загрузку
-    output_dir = Path(args.output_dir)
-    downloader.download_batch_results(output_dir)
+    # Скачиваем результат
+    success = download_merged_result(batch_id)
+    
+    if success:
+        print("\n✅ Готово!")
+    else:
+        print("\n❌ Не удалось скачать документацию")
+        sys.exit(1)
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
-

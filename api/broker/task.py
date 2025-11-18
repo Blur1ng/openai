@@ -95,77 +95,77 @@ def add_prompt_task(data: dict):
             logging.info(f"Completed processing {len(chunks)} chunks. Total tokens: {total_usage['total_tokens']}")
     
     elif ai_model == "deepseek":
-        client = DeepSeekClient(
-            api_key=SECRET_KEY_DEEPSEEK,
-            model_name=prompt_data.model,
-            system_prompt=prompt,
-            mathematical_percent=10
-        )
-        
-        request_tokens = len(client.tokenize_text(prompt_data.request))
-        system_tokens = len(client.tokenize_text(prompt)) if prompt else 0
-        total_input_tokens = request_tokens + system_tokens
-        
-        logging.info(f"DeepSeek request tokens: {request_tokens}, System tokens: {system_tokens}, Total: {total_input_tokens}, Max: {client.max_tokens}")
-        
-        # Если запрос помещается целиком
-        if total_input_tokens <= client.max_tokens:
-            result = client.send_full_request_with_usage(prompt_data.request)
-            texts = result["text"]
-            total_usage = result["usage"]
-            logging.info(f"DeepSeek sent as single request. Tokens used: {total_usage['total_tokens']}")
-        
-        # Если не помещается - разбиваем на чанки
-        else:
-            logging.warning(f"DeepSeek request too large ({total_input_tokens} tokens), splitting into chunks")
+            client = DeepSeekClient(
+                api_key=SECRET_KEY_DEEPSEEK,
+                model_name=prompt_data.model,
+                system_prompt=prompt,
+                mathematical_percent=10
+            )
             
-            # Размер чанка = 80% от доступного места (оставляем место на ответ)
-            chunk_size = int(client.max_tokens * 0.8) - system_tokens
-            chunks = client.split_text_into_chunks(prompt_data.request, chunk_size=chunk_size)
+            request_tokens = len(client.tokenize_text(prompt_data.request))
+            system_tokens = len(client.tokenize_text(prompt)) if prompt else 0
+            total_input_tokens = request_tokens + system_tokens
             
-            all_texts = []
-            total_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+            logging.info(f"DeepSeek request tokens: {request_tokens}, System tokens: {system_tokens}, Total: {total_input_tokens}, Max: {client.max_tokens}")
             
-            for idx, chunk in enumerate(chunks, 1):
-                logging.info(f"Processing DeepSeek chunk {idx}/{len(chunks)}")
+            # Если запрос помещается целиком
+            if total_input_tokens <= client.max_tokens:
+                result = client.send_full_request_with_usage(prompt_data.request)
+                texts = result["text"]
+                total_usage = result["usage"]
+                logging.info(f"DeepSeek sent as single request. Tokens used: {total_usage['total_tokens']}")
+            
+            # Если не помещается - разбиваем на чанки
+            else:
+                logging.warning(f"DeepSeek request too large ({total_input_tokens} tokens), splitting into chunks")
                 
-                chunk_message = f"[Часть {idx} из {len(chunks)}]\n\n{chunk}"
-                result = client.send_message_with_usage(chunk_message)
-                all_texts.append(result["text"])
+                # Размер чанка = 80% от доступного места (оставляем место на ответ)
+                chunk_size = int(client.max_tokens * 0.8) - system_tokens
+                chunks = client.split_text_into_chunks(prompt_data.request, chunk_size=chunk_size)
                 
-                for key in total_usage:
-                    total_usage[key] += result["usage"].get(key, 0)
-            
-            texts = '\n\n'.join(all_texts)
-            logging.info(f"DeepSeek completed {len(chunks)} chunks. Total tokens: {total_usage['total_tokens']}")
+                all_texts = []
+                total_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+                
+                for idx, chunk in enumerate(chunks, 1):
+                    logging.info(f"Processing DeepSeek chunk {idx}/{len(chunks)}")
+                    
+                    chunk_message = f"[Часть {idx} из {len(chunks)}]\n\n{chunk}"
+                    result = client.send_message_with_usage(chunk_message)
+                    all_texts.append(result["text"])
+                    
+                    for key in total_usage:
+                        total_usage[key] += result["usage"].get(key, 0)
+                
+                texts = '\n\n'.join(all_texts)
+                logging.info(f"DeepSeek completed {len(chunks)} chunks. Total tokens: {total_usage['total_tokens']}")
     
     elif ai_model == "sonnet":
-        client = SonnetClient(
-            api_key=SECRET_KEY_SONNET,
-            model_name=prompt_data.model,
-            system_prompt=prompt,
-            mathematical_percent=10
-        )
+            client = SonnetClient(
+                api_key=SECRET_KEY_SONNET,
+                model_name=prompt_data.model,
+                system_prompt=prompt,
+                mathematical_percent=10
+            )
+            
+            request_tokens = client.count_tokens(prompt_data.request)
+            system_tokens = client.count_tokens(prompt) if prompt else 0
+            total_input_tokens = request_tokens + system_tokens
+            
+            logging.info(f"Claude request tokens: ~{request_tokens}, System tokens: ~{system_tokens}, Total: ~{total_input_tokens}, Max: {client.max_tokens}")
+            
+            if total_input_tokens <= client.max_tokens:
+                result = client.send_full_request_with_usage(prompt_data.request)
+                texts = result["text"]
+                total_usage = result["usage"]
+                logging.info(f"Claude sent as single request. Tokens used: {total_usage['total_tokens']}")
+            
+            else:
+                logging.warning(f"Claude request too large (~{total_input_tokens} tokens), splitting into chunks")
+                result = client.send_chunked_message_with_usage(prompt_data.request)
+                texts = result["text"]
+                total_usage = result["usage"]
+                logging.info(f"Claude completed chunked request. Total tokens: {total_usage['total_tokens']}")
         
-        request_tokens = client.count_tokens(prompt_data.request)
-        system_tokens = client.count_tokens(prompt) if prompt else 0
-        total_input_tokens = request_tokens + system_tokens
-        
-        logging.info(f"Claude request tokens: ~{request_tokens}, System tokens: ~{system_tokens}, Total: ~{total_input_tokens}, Max: {client.max_tokens}")
-        
-        if total_input_tokens <= client.max_tokens:
-            result = client.send_full_request_with_usage(prompt_data.request)
-            texts = result["text"]
-            total_usage = result["usage"]
-            logging.info(f"Claude sent as single request. Tokens used: {total_usage['total_tokens']}")
-        
-        else:
-            logging.warning(f"Claude request too large (~{total_input_tokens} tokens), splitting into chunks")
-            result = client.send_chunked_message_with_usage(prompt_data.request)
-            texts = result["text"]
-            total_usage = result["usage"]
-            logging.info(f"Claude completed chunked request. Total tokens: {total_usage['total_tokens']}")
-    
     else:
         raise HTTPException(status_code=400, detail="Нет такой AI модели")
     
@@ -188,7 +188,7 @@ def add_prompt_task(data: dict):
         logging.error(f"Job {job_id} not found in database after processing")
     
     db.close()
-    
+
     return {
         "ai_model": prompt_data.ai_model,
         "model": prompt_data.model,
@@ -199,7 +199,7 @@ def add_prompt_task(data: dict):
             "total_tokens": total_usage["total_tokens"],
         }
     }
-
+    
 
 def check_and_update_batch_status(batch_id: str, db: Session):
     """Проверяет статус всех задач в батче и обновляет BatchStatus"""
@@ -231,6 +231,12 @@ def check_and_update_batch_status(batch_id: str, db: Session):
             
             logging.info(f"Batch {batch_id} completed: {completed_count} successful, {failed_count} failed")
             
+            # Объединяем результаты в один файл
+            if completed_count > 0:
+                merged_id = merge_batch_results(batch_id, db)
+                if merged_id:
+                    logging.info(f"Merged result created with ID: {merged_id}")
+            
             # Отправляем webhook если указан
             if batch_status.callback_url and not batch_status.callback_sent:
                 send_webhook_notification(batch_status, db)
@@ -249,6 +255,78 @@ def check_and_update_batch_status(batch_id: str, db: Session):
     except Exception as e:
         logging.error(f"Error updating batch status for {batch_id}: {e}", exc_info=True)
         db.rollback()
+
+
+def merge_batch_results(batch_id: str, db: Session):
+    """Объединяет все результаты батча в один файл"""
+    try:
+        # Получаем все успешно завершенные задачи батча
+        all_jobs = db.query(JobResult).filter(
+            JobResult.batch_id == batch_id,
+            JobResult.status == 'finished'
+        ).order_by(JobResult.prompt_name).all()
+        
+        if not all_jobs:
+            logging.warning(f"No finished jobs found for batch {batch_id}")
+            return None
+        
+        # Объединяем все результаты
+        merged_content = []
+        merged_content.append(f"# Объединенные результаты документации\n")
+        merged_content.append(f"Batch ID: {batch_id}\n")
+        merged_content.append(f"Дата: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        merged_content.append(f"Всего секций: {len(all_jobs)}\n")
+        merged_content.append("\n" + "=" * 80 + "\n\n")
+        
+        for idx, job in enumerate(all_jobs, 1):
+            merged_content.append(f"\n\n{'=' * 80}\n")
+            merged_content.append(f"# Секция {idx}: {job.prompt_name}\n")
+            merged_content.append(f"{'=' * 80}\n\n")
+            merged_content.append(job.result_text)
+            merged_content.append("\n\n")
+        
+        # Добавляем статистику в конец
+        total_prompt_tokens = sum(job.prompt_tokens or 0 for job in all_jobs)
+        total_completion_tokens = sum(job.completion_tokens or 0 for job in all_jobs)
+        total_tokens = sum(job.total_tokens or 0 for job in all_jobs)
+        
+        merged_content.append("\n\n" + "=" * 80 + "\n")
+        merged_content.append("# Статистика обработки\n")
+        merged_content.append("=" * 80 + "\n\n")
+        merged_content.append(f"- Обработано секций: {len(all_jobs)}\n")
+        merged_content.append(f"- AI модель: {all_jobs[0].ai_model}\n")
+        merged_content.append(f"- Модель: {all_jobs[0].model}\n")
+        merged_content.append(f"- Всего токенов (prompt): {total_prompt_tokens:,}\n")
+        merged_content.append(f"- Всего токенов (completion): {total_completion_tokens:,}\n")
+        merged_content.append(f"- Всего токенов: {total_tokens:,}\n")
+        
+        merged_text = "".join(merged_content)
+        
+        # Создаем новую запись с объединенным результатом
+        merged_job = JobResult(
+            job_id=f"merged_{batch_id}",
+            batch_id=batch_id,
+            ai_model=all_jobs[0].ai_model,
+            model=all_jobs[0].model,
+            prompt_name="MERGED_DOCUMENTATION",
+            request_code=all_jobs[0].request_code,
+            result_text=merged_text,
+            prompt_tokens=total_prompt_tokens,
+            completion_tokens=total_completion_tokens,
+            total_tokens=total_tokens,
+            status='finished',
+            completed_at=datetime.utcnow()
+        )
+        db.add(merged_job)
+        db.commit()
+        
+        logging.info(f"Merged results created for batch {batch_id}: {len(all_jobs)} sections, {total_tokens:,} tokens")
+        return merged_job.id
+        
+    except Exception as e:
+        logging.error(f"Error merging batch results for {batch_id}: {e}", exc_info=True)
+        db.rollback()
+        return None
 
 
 def send_webhook_notification(batch_status: BatchStatus, db: Session):

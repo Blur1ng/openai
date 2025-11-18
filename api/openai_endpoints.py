@@ -117,13 +117,25 @@ async def get_batch_status(batch_id: str, db: AsyncSession = Depends(get_db)):
     if not batch:
         raise HTTPException(status_code=404, detail="Батч не найден")
     
-    # Получаем все задачи этого батча
+    # Получаем все задачи этого батча (исключая объединенный файл)
     jobs_result = await db.execute(
-        select(JobResult).where(JobResult.batch_id == batch_id).order_by(JobResult.created_at)
+        select(JobResult).where(
+            JobResult.batch_id == batch_id,
+            JobResult.prompt_name != "MERGED_DOCUMENTATION"
+        ).order_by(JobResult.created_at)
     )
     jobs = jobs_result.scalars().all()
     
-    return {
+    # Проверяем наличие объединенного файла
+    merged_result = await db.execute(
+        select(JobResult).where(
+            JobResult.batch_id == batch_id,
+            JobResult.prompt_name == "MERGED_DOCUMENTATION"
+        )
+    )
+    merged_job = merged_result.scalar_one_or_none()
+    
+    response = {
         "batch_id": batch.batch_id,
         "status": batch.status,
         "total_jobs": batch.total_jobs,
@@ -131,6 +143,8 @@ async def get_batch_status(batch_id: str, db: AsyncSession = Depends(get_db)):
         "failed_jobs": batch.failed_jobs,
         "created_at": batch.created_at.isoformat() if batch.created_at else None,
         "completed_at": batch.completed_at.isoformat() if batch.completed_at else None,
+        "has_merged_result": merged_job is not None,
+        "merged_job_id": merged_job.job_id if merged_job else None,
         "jobs": [
             {
                 "job_id": job.job_id,
@@ -144,6 +158,8 @@ async def get_batch_status(batch_id: str, db: AsyncSession = Depends(get_db)):
             for job in jobs
         ]
     }
+    
+    return response
 
 
 # TODO: Вернуть проверку авторизации после добавления системы регистрации
