@@ -60,7 +60,7 @@ def add_prompt_task(data: dict):
                 system_prompt=prompt,
                 mathematical_percent=10
             )
-        
+            
             # Проверяем размер запроса
             request_tokens = len(chatgpt_client.tokenize_text(prompt_data.request))
             system_tokens = len(chatgpt_client.tokenize_text(prompt)) if prompt else 0
