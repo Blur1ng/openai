@@ -5,7 +5,6 @@ from openai_.openai_client      import ChatGPTClient
 from openai_.deepseek_client    import DeepSeekClient
 from openai_.sonnet_client      import SonnetClient
 from api.core.security          import SECRET_KEY_OPENAI, SECRET_KEY_DEEPSEEK, SECRET_KEY_SONNET
-from pathlib                    import Path
 from api.schemas.openapi_schema import request_form
 from sqlalchemy.ext.asyncio     import AsyncSession
 from sqlalchemy                 import select, create_engine
@@ -39,12 +38,12 @@ def add_prompt_task(data: dict):
         if job_record:
             job_record.status = 'started'
             db.commit()
+            logging.info(f"Job {job_id} ({prompt_name}) started")
         else:
             logging.warning(f"Job {job_id} not found in database")
     except Exception as e:
         logging.warning(f"Could not update job status to started: {e}")
         db.rollback()
-    
     
     ai_model = prompt_data.ai_model
     
@@ -96,77 +95,77 @@ def add_prompt_task(data: dict):
             logging.info(f"Completed processing {len(chunks)} chunks. Total tokens: {total_usage['total_tokens']}")
     
     elif ai_model == "deepseek":
-            client = DeepSeekClient(
-                api_key=SECRET_KEY_DEEPSEEK,
-                model_name=prompt_data.model,
-                system_prompt=prompt,
-                mathematical_percent=10
-            )
+        client = DeepSeekClient(
+            api_key=SECRET_KEY_DEEPSEEK,
+            model_name=prompt_data.model,
+            system_prompt=prompt,
+            mathematical_percent=10
+        )
+        
+        request_tokens = len(client.tokenize_text(prompt_data.request))
+        system_tokens = len(client.tokenize_text(prompt)) if prompt else 0
+        total_input_tokens = request_tokens + system_tokens
+        
+        logging.info(f"DeepSeek request tokens: {request_tokens}, System tokens: {system_tokens}, Total: {total_input_tokens}, Max: {client.max_tokens}")
+        
+        # Если запрос помещается целиком
+        if total_input_tokens <= client.max_tokens:
+            result = client.send_full_request_with_usage(prompt_data.request)
+            texts = result["text"]
+            total_usage = result["usage"]
+            logging.info(f"DeepSeek sent as single request. Tokens used: {total_usage['total_tokens']}")
+        
+        # Если не помещается - разбиваем на чанки
+        else:
+            logging.warning(f"DeepSeek request too large ({total_input_tokens} tokens), splitting into chunks")
             
-            request_tokens = len(client.tokenize_text(prompt_data.request))
-            system_tokens = len(client.tokenize_text(prompt)) if prompt else 0
-            total_input_tokens = request_tokens + system_tokens
+            # Размер чанка = 80% от доступного места (оставляем место на ответ)
+            chunk_size = int(client.max_tokens * 0.8) - system_tokens
+            chunks = client.split_text_into_chunks(prompt_data.request, chunk_size=chunk_size)
             
-            logging.info(f"DeepSeek request tokens: {request_tokens}, System tokens: {system_tokens}, Total: {total_input_tokens}, Max: {client.max_tokens}")
+            all_texts = []
+            total_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
             
-            # Если запрос помещается целиком
-            if total_input_tokens <= client.max_tokens:
-                result = client.send_full_request_with_usage(prompt_data.request)
-                texts = result["text"]
-                total_usage = result["usage"]
-                logging.info(f"DeepSeek sent as single request. Tokens used: {total_usage['total_tokens']}")
+            for idx, chunk in enumerate(chunks, 1):
+                logging.info(f"Processing DeepSeek chunk {idx}/{len(chunks)}")
+                
+                chunk_message = f"[Часть {idx} из {len(chunks)}]\n\n{chunk}"
+                result = client.send_message_with_usage(chunk_message)
+                all_texts.append(result["text"])
+                
+                for key in total_usage:
+                    total_usage[key] += result["usage"].get(key, 0)
             
-            # Если не помещается - разбиваем на чанки
-            else:
-                logging.warning(f"DeepSeek request too large ({total_input_tokens} tokens), splitting into chunks")
-                
-                # Размер чанка = 80% от доступного места (оставляем место на ответ)
-                chunk_size = int(client.max_tokens * 0.8) - system_tokens
-                chunks = client.split_text_into_chunks(prompt_data.request, chunk_size=chunk_size)
-                
-                all_texts = []
-                total_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
-                
-                for idx, chunk in enumerate(chunks, 1):
-                    logging.info(f"Processing DeepSeek chunk {idx}/{len(chunks)}")
-                    
-                    chunk_message = f"[Часть {idx} из {len(chunks)}]\n\n{chunk}"
-                    result = client.send_message_with_usage(chunk_message)
-                    all_texts.append(result["text"])
-                    
-                    for key in total_usage:
-                        total_usage[key] += result["usage"].get(key, 0)
-                
-                texts = '\n\n'.join(all_texts)
-                logging.info(f"DeepSeek completed {len(chunks)} chunks. Total tokens: {total_usage['total_tokens']}")
+            texts = '\n\n'.join(all_texts)
+            logging.info(f"DeepSeek completed {len(chunks)} chunks. Total tokens: {total_usage['total_tokens']}")
     
     elif ai_model == "sonnet":
-            client = SonnetClient(
-                api_key=SECRET_KEY_SONNET,
-                model_name=prompt_data.model,
-                system_prompt=prompt,
-                mathematical_percent=10
-            )
-            
-            request_tokens = client.count_tokens(prompt_data.request)
-            system_tokens = client.count_tokens(prompt) if prompt else 0
-            total_input_tokens = request_tokens + system_tokens
-            
-            logging.info(f"Claude request tokens: ~{request_tokens}, System tokens: ~{system_tokens}, Total: ~{total_input_tokens}, Max: {client.max_tokens}")
-            
-            if total_input_tokens <= client.max_tokens:
-                result = client.send_full_request_with_usage(prompt_data.request)
-                texts = result["text"]
-                total_usage = result["usage"]
-                logging.info(f"Claude sent as single request. Tokens used: {total_usage['total_tokens']}")
-            
-            else:
-                logging.warning(f"Claude request too large (~{total_input_tokens} tokens), splitting into chunks")
-                result = client.send_chunked_message_with_usage(prompt_data.request)
-                texts = result["text"]
-                total_usage = result["usage"]
-                logging.info(f"Claude completed chunked request. Total tokens: {total_usage['total_tokens']}")
+        client = SonnetClient(
+            api_key=SECRET_KEY_SONNET,
+            model_name=prompt_data.model,
+            system_prompt=prompt,
+            mathematical_percent=10
+        )
         
+        request_tokens = client.count_tokens(prompt_data.request)
+        system_tokens = client.count_tokens(prompt) if prompt else 0
+        total_input_tokens = request_tokens + system_tokens
+        
+        logging.info(f"Claude request tokens: ~{request_tokens}, System tokens: ~{system_tokens}, Total: ~{total_input_tokens}, Max: {client.max_tokens}")
+        
+        if total_input_tokens <= client.max_tokens:
+            result = client.send_full_request_with_usage(prompt_data.request)
+            texts = result["text"]
+            total_usage = result["usage"]
+            logging.info(f"Claude sent as single request. Tokens used: {total_usage['total_tokens']}")
+        
+        else:
+            logging.warning(f"Claude request too large (~{total_input_tokens} tokens), splitting into chunks")
+            result = client.send_chunked_message_with_usage(prompt_data.request)
+            texts = result["text"]
+            total_usage = result["usage"]
+            logging.info(f"Claude completed chunked request. Total tokens: {total_usage['total_tokens']}")
+    
     else:
         raise HTTPException(status_code=400, detail="Нет такой AI модели")
     
@@ -181,10 +180,12 @@ def add_prompt_task(data: dict):
         job_record.status = 'finished'
         job_record.completed_at = datetime.utcnow()
         db.commit()
-        logging.info(f"Job {job_id} saved to database successfully")
+        logging.info(f"Job {job_id} ({prompt_name}) saved to database successfully")
         
         # Обновляем статус батча
         check_and_update_batch_status(batch_id, db)
+    else:
+        logging.error(f"Job {job_id} not found in database after processing")
     
     db.close()
     
@@ -214,6 +215,8 @@ def check_and_update_batch_status(batch_id: str, db: Session):
         
         completed_count = sum(1 for job in all_jobs if job.status == 'finished')
         failed_count = sum(1 for job in all_jobs if job.status == 'failed')
+        started_count = sum(1 for job in all_jobs if job.status == 'started')
+        queued_count = sum(1 for job in all_jobs if job.status == 'queued')
         
         # Обновляем счетчики
         batch_status.completed_jobs = completed_count
@@ -233,10 +236,18 @@ def check_and_update_batch_status(batch_id: str, db: Session):
                 send_webhook_notification(batch_status, db)
         else:
             db.commit()
-            logging.info(f"Batch {batch_id} progress: {total_finished}/{batch_status.total_jobs}")
+            logging.info(f"Batch {batch_id} progress: {total_finished}/{batch_status.total_jobs} (completed: {completed_count}, failed: {failed_count}, started: {started_count}, queued: {queued_count})")
+            
+            # Логируем задачи, которые долго выполняются
+            for job in all_jobs:
+                if job.status == 'started' and job.created_at:
+                    # Если задача выполняется больше 10 минут
+                    time_diff = (datetime.utcnow() - job.created_at).total_seconds()
+                    if time_diff > 600:
+                        logging.warning(f"Job {job.job_id} ({job.prompt_name}) has been running for {time_diff/60:.1f} minutes")
             
     except Exception as e:
-        logging.error(f"Error updating batch status for {batch_id}: {e}")
+        logging.error(f"Error updating batch status for {batch_id}: {e}", exc_info=True)
         db.rollback()
 
 
