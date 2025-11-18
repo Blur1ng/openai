@@ -432,8 +432,24 @@ async def send_task(request_data: request_form, db: AsyncSession):
     
     jobs = []
     for prompt in prompts:
+        # Создаём временную задачу чтобы получить UUID
+        temp_data = {
+            "prompt_data": request_data,
+            "prompt": prompt.content,
+            "prompt_name": prompt.name,
+            "job_id": None,
+            "batch_id": batch_id
+        }
+        temp_job = q.enqueue(add_prompt_task, temp_data)
+        job_id = temp_job.id
+        
+        # Сразу отменяем временную задачу
+        temp_job.cancel()
+        temp_job.delete()
+        
+        # Создаём запись в БД с правильным job_id
         job_record = JobResult(
-            job_id="",
+            job_id=job_id,
             batch_id=batch_id,
             ai_model=request_data.ai_model,
             model=request_data.model,
@@ -442,22 +458,17 @@ async def send_task(request_data: request_form, db: AsyncSession):
             status='queued'
         )
         db.add(job_record)
-        await db.flush() 
+        await db.flush()
         
+        # Создаём финальную задачу с правильным job_id
         data = {
             "prompt_data": request_data,
             "prompt": prompt.content,
             "prompt_name": prompt.name,
-            "job_id": None,
+            "job_id": job_id,
             "batch_id": batch_id
         }
-        job = q.enqueue(add_prompt_task, data)
-        
-        data["job_id"] = job.id
-        job_record.job_id = job.id
-        
-        job.cancel()
-        job = q.enqueue(add_prompt_task, data)
+        job = q.enqueue(add_prompt_task, data, job_id=job_id)
         
         print(f"Задача поставлена в очередь: {job.id} (промпт: {prompt.name}, batch: {batch_id})")
         jobs.append({
