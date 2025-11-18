@@ -323,8 +323,13 @@ async function downloadResult(jobId) {
         
         const data = await response.json();
         
+        // Проверяем наличие результата
+        if (!data.result) {
+            throw new Error('Результат не готов или отсутствует');
+        }
+        
         // Создаем и скачиваем файл
-        const blob = new Blob([data.result_text], { type: 'text/markdown' });
+        const blob = new Blob([data.result], { type: 'text/markdown' });
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -336,7 +341,7 @@ async function downloadResult(jobId) {
         
     } catch (error) {
         console.error('Download error:', error);
-        showError('Ошибка при скачивании файла');
+        showError('Ошибка при скачивании файла: ' + error.message);
     }
 }
 
@@ -361,8 +366,13 @@ downloadAllBtn.addEventListener('click', async () => {
             
             const data = await response.json();
             
+            // Проверяем наличие результата
+            if (!data.result) {
+                throw new Error('Объединенный результат не готов или отсутствует');
+            }
+            
             // Создаем и скачиваем файл
-            const blob = new Blob([data.result || data.result_text], { type: 'text/markdown' });
+            const blob = new Blob([data.result], { type: 'text/markdown' });
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;

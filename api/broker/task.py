@@ -45,56 +45,61 @@ def add_prompt_task(data: dict):
         logging.warning(f"Could not update job status to started: {e}")
         db.rollback()
     
-    ai_model = prompt_data.ai_model
+    # Обрабатываем AI запросы с обработкой ошибок
+    texts = None
+    total_usage = None
     
-    if ai_model == "chatgpt":
-        chatgpt_client = ChatGPTClient(
-            api_key=SECRET_KEY_OPENAI,
-            model_name=prompt_data.model,
-            embeddings_model_name="text-embedding-3-small",
-            system_prompt=prompt,
-            mathematical_percent=10
-        )
+    try:
+        ai_model = prompt_data.ai_model
         
-        # Проверяем размер запроса
-        request_tokens = len(chatgpt_client.tokenize_text(prompt_data.request))
-        system_tokens = len(chatgpt_client.tokenize_text(prompt)) if prompt else 0
-        total_input_tokens = request_tokens + system_tokens
+        if ai_model == "chatgpt":
+            chatgpt_client = ChatGPTClient(
+                api_key=SECRET_KEY_OPENAI,
+                model_name=prompt_data.model,
+                embeddings_model_name="text-embedding-3-small",
+                system_prompt=prompt,
+                mathematical_percent=10
+            )
         
-        logging.info(f"Request tokens: {request_tokens}, System tokens: {system_tokens}, Total: {total_input_tokens}, Max: {chatgpt_client.max_tokens}")
+            # Проверяем размер запроса
+            request_tokens = len(chatgpt_client.tokenize_text(prompt_data.request))
+            system_tokens = len(chatgpt_client.tokenize_text(prompt)) if prompt else 0
+            total_input_tokens = request_tokens + system_tokens
+            
+            logging.info(f"Request tokens: {request_tokens}, System tokens: {system_tokens}, Total: {total_input_tokens}, Max: {chatgpt_client.max_tokens}")
+            
+            # Если запрос помещается целиком
+            if total_input_tokens <= chatgpt_client.max_tokens:
+                result = chatgpt_client.send_full_request_with_usage(prompt_data.request)
+                texts = result["text"]
+                total_usage = result["usage"]
+                logging.info(f"Sent as single request. Tokens used: {total_usage['total_tokens']}")
+            # Если не помещается - разбиваем на чанки
+            else:
+                logging.warning(f"Request too large ({total_input_tokens} tokens), splitting into chunks")
+                
+                # Размер чанка = 80% от доступного места (оставляем место на ответ)
+                chunk_size = int(chatgpt_client.max_tokens * 0.8) - system_tokens
+                chunks = chatgpt_client.split_text_into_chunks(prompt_data.request, chunk_size=chunk_size)
+                
+                all_texts = []
+                total_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+                
+                for idx, chunk in enumerate(chunks, 1):
+                    logging.info(f"Processing chunk {idx}/{len(chunks)}")
+                    
+                    chunk_message = f"[Часть {idx} из {len(chunks)}]\n\n{chunk}"
+                    
+                    result = chatgpt_client.send_message_with_usage(chunk_message)
+                    all_texts.append(result["text"])
+                    
+                    for key in total_usage:
+                        total_usage[key] += result["usage"].get(key, 0)
+                
+                texts = '\n\n'.join(all_texts)  
+                logging.info(f"Completed processing {len(chunks)} chunks. Total tokens: {total_usage['total_tokens']}")
         
-        # Если запрос помещается целиком
-        if total_input_tokens <= chatgpt_client.max_tokens:
-            result = chatgpt_client.send_full_request_with_usage(prompt_data.request)
-            texts = result["text"]
-            total_usage = result["usage"]
-            logging.info(f"Sent as single request. Tokens used: {total_usage['total_tokens']}")
-        # Если не помещается - разбиваем на чанки
-        else:
-            logging.warning(f"Request too large ({total_input_tokens} tokens), splitting into chunks")
-            
-            # Размер чанка = 80% от доступного места (оставляем место на ответ)
-            chunk_size = int(chatgpt_client.max_tokens * 0.8) - system_tokens
-            chunks = chatgpt_client.split_text_into_chunks(prompt_data.request, chunk_size=chunk_size)
-            
-            all_texts = []
-            total_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
-            
-            for idx, chunk in enumerate(chunks, 1):
-                logging.info(f"Processing chunk {idx}/{len(chunks)}")
-                
-                chunk_message = f"[Часть {idx} из {len(chunks)}]\n\n{chunk}"
-                
-                result = chatgpt_client.send_message_with_usage(chunk_message)
-                all_texts.append(result["text"])
-                
-                for key in total_usage:
-                    total_usage[key] += result["usage"].get(key, 0)
-            
-            texts = '\n\n'.join(all_texts)  
-            logging.info(f"Completed processing {len(chunks)} chunks. Total tokens: {total_usage['total_tokens']}")
-    
-    elif ai_model == "deepseek":
+        elif ai_model == "deepseek":
             client = DeepSeekClient(
                 api_key=SECRET_KEY_DEEPSEEK,
                 model_name=prompt_data.model,
@@ -138,8 +143,8 @@ def add_prompt_task(data: dict):
                 
                 texts = '\n\n'.join(all_texts)
                 logging.info(f"DeepSeek completed {len(chunks)} chunks. Total tokens: {total_usage['total_tokens']}")
-    
-    elif ai_model == "sonnet":
+        
+        elif ai_model == "sonnet":
             client = SonnetClient(
                 api_key=SECRET_KEY_SONNET,
                 model_name=prompt_data.model,
@@ -166,8 +171,48 @@ def add_prompt_task(data: dict):
                 total_usage = result["usage"]
                 logging.info(f"Claude completed chunked request. Total tokens: {total_usage['total_tokens']}")
         
-    else:
-        raise HTTPException(status_code=400, detail="Нет такой AI модели")
+        else:
+            raise HTTPException(status_code=400, detail="Нет такой AI модели")
+    
+    except Exception as e:
+        # Обрабатываем ошибки (включая rate limit)
+        error_message = str(e)
+        error_type = type(e).__name__
+        
+        if "RateLimitError" in error_type or "rate_limit" in error_message.lower():
+            error_message = f"Rate limit exceeded: {error_message[:200]}"
+            logging.warning(f"Rate limit error for job {job_id}: {error_message}")
+        else:
+            logging.error(f"Error processing job {job_id} ({prompt_name}): {e}", exc_info=True)
+        
+        # Помечаем задачу как failed
+        try:
+            job_record = db.query(JobResult).filter(JobResult.job_id == job_id).first()
+            if job_record:
+                job_record.status = 'failed'
+                job_record.error_message = error_message[:500]
+                job_record.completed_at = datetime.utcnow()
+                db.commit()
+                logging.info(f"Job {job_id} ({prompt_name}) marked as failed")
+                
+                # Обновляем статус батча
+                check_and_update_batch_status(batch_id, db)
+            else:
+                logging.error(f"Job {job_id} not found in database when trying to mark as failed")
+        except Exception as db_error:
+            logging.error(f"Error updating job status to failed: {db_error}")
+            db.rollback()
+        finally:
+            db.close()
+        
+        # Пробрасываем исключение дальше для RQ
+        raise
+    
+    # Проверяем, что результат получен
+    if texts is None or total_usage is None:
+        logging.error(f"Job {job_id} completed but texts or total_usage is None")
+        db.close()
+        raise ValueError("AI processing failed - no result")
     
     # Сохраняем результат в БД (синхронно)
     job_record = db.query(JobResult).filter(JobResult.job_id == job_id).first()
