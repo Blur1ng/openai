@@ -225,12 +225,12 @@ def add_prompt_task(data: dict):
         job_record.status = 'finished'
         job_record.completed_at = datetime.utcnow()
         db.commit()
-        logging.info(f"Job {job_id} ({prompt_name}) saved to database successfully")
+        print(f"[SAVE] Job {job_id} saved: tokens={total_usage['total_tokens']}, result_len={len(texts)}")
         
         # Обновляем статус батча
         check_and_update_batch_status(batch_id, db)
     else:
-        logging.error(f"Job {job_id} not found in database after processing")
+        print(f"[ERROR] Job {job_id} NOT FOUND after processing")
     
     db.close()
 
@@ -252,7 +252,7 @@ def check_and_update_batch_status(batch_id: str, db: Session):
         # Получаем статус батча
         batch_status = db.query(BatchStatus).filter(BatchStatus.batch_id == batch_id).first()
         if not batch_status:
-            logging.warning(f"Batch {batch_id} not found")
+            print(f"[BATCH] Batch {batch_id} not found")
             return
         
         # Получаем все задачи этого батча
@@ -262,6 +262,8 @@ def check_and_update_batch_status(batch_id: str, db: Session):
         failed_count = sum(1 for job in all_jobs if job.status == 'failed')
         started_count = sum(1 for job in all_jobs if job.status == 'started')
         queued_count = sum(1 for job in all_jobs if job.status == 'queued')
+        
+        print(f"[BATCH] {batch_id}: {completed_count}/{batch_status.total_jobs} completed, {failed_count} failed")
         
         # Обновляем счетчики
         batch_status.completed_jobs = completed_count
@@ -274,13 +276,13 @@ def check_and_update_batch_status(batch_id: str, db: Session):
             batch_status.completed_at = datetime.utcnow()
             db.commit()
             
-            logging.info(f"Batch {batch_id} completed: {completed_count} successful, {failed_count} failed")
+            print(f"[BATCH] Batch {batch_id} COMPLETED! Starting merge...")
             
             # Объединяем результаты в один файл
             if completed_count > 0:
                 merged_id = merge_batch_results(batch_id, db)
                 if merged_id:
-                    logging.info(f"Merged result created with ID: {merged_id}")
+                    print(f"[MERGE] Created merged result with ID: {merged_id}")
             
             # Отправляем webhook если указан
             if batch_status.callback_url and not batch_status.callback_sent:
@@ -304,6 +306,7 @@ def check_and_update_batch_status(batch_id: str, db: Session):
 
 def merge_batch_results(batch_id: str, db: Session):
     """Объединяет все результаты батча в один файл"""
+    print(f"[MERGE] Starting merge for batch {batch_id}")
     try:
         # Получаем все успешно завершенные задачи батча
         all_jobs = db.query(JobResult).filter(
@@ -311,8 +314,10 @@ def merge_batch_results(batch_id: str, db: Session):
             JobResult.status == 'finished'
         ).order_by(JobResult.prompt_name).all()
         
+        print(f"[MERGE] Found {len(all_jobs)} finished jobs")
+        
         if not all_jobs:
-            logging.warning(f"No finished jobs found for batch {batch_id}")
+            print(f"[MERGE] No finished jobs found for batch {batch_id}")
             return None
         
         # Объединяем все результаты
@@ -365,7 +370,7 @@ def merge_batch_results(batch_id: str, db: Session):
         db.add(merged_job)
         db.commit()
         
-        logging.info(f"Merged results created for batch {batch_id}: {len(all_jobs)} sections, {total_tokens:,} tokens")
+        print(f"[MERGE] Saved merged job: ID={merged_job.id}, {len(all_jobs)} sections, {total_tokens:,} tokens, text_len={len(merged_text)}")
         return merged_job.id
         
     except Exception as e:
