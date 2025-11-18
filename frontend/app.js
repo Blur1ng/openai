@@ -153,8 +153,8 @@ submitBtn.addEventListener('click', async () => {
         progressSection.classList.add('show');
         progressStatus.textContent = `0 / ${data.total}`;
         
-        // Инициализируем карточки результатов
-        initializeResultCards(data.jobs);
+        // Очищаем карточки результатов (не показываем их)
+        resultsGrid.innerHTML = '';
         
         // Начинаем polling
         startPolling();
@@ -252,10 +252,7 @@ function updateProgress(batchData) {
     progressStatus.textContent = `${completed} / ${total}`;
     progressBarFill.style.width = `${percentage}%`;
     
-    // Обновляем статусы отдельных задач
-    if (batchData.jobs) {
-        batchData.jobs.forEach(updateJobCard);
-    }
+    // Карточки не показываем
 }
 
 // Обновление карточки задачи

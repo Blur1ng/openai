@@ -326,12 +326,12 @@ def merge_batch_results(batch_id: str, db: Session):
         merged_content.append(f"Batch ID: {batch_id}\n")
         merged_content.append(f"Дата: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}\n")
         merged_content.append(f"Всего секций: {len(all_jobs)}\n")
-        merged_content.append("\n" + "=" * 80 + "\n\n")
+        merged_content.append("\n" + "=" * 60 + "\n\n")
         
         for idx, job in enumerate(all_jobs, 1):
             merged_content.append(f"\n\n{'=' * 80}\n")
             merged_content.append(f"# Секция {idx}: {job.prompt_name}\n")
-            merged_content.append(f"{'=' * 80}\n\n")
+            merged_content.append(f"{'=' * 60}\n\n")
             merged_content.append(job.result_text)
             merged_content.append("\n\n")
         
@@ -340,9 +340,9 @@ def merge_batch_results(batch_id: str, db: Session):
         total_completion_tokens = sum(job.completion_tokens or 0 for job in all_jobs)
         total_tokens = sum(job.total_tokens or 0 for job in all_jobs)
         
-        merged_content.append("\n\n" + "=" * 80 + "\n")
+        merged_content.append("\n\n" + "=" * 60 + "\n")
         merged_content.append("# Статистика обработки\n")
-        merged_content.append("=" * 80 + "\n\n")
+        merged_content.append("=" * 60 + "\n\n")
         merged_content.append(f"- Обработано секций: {len(all_jobs)}\n")
         merged_content.append(f"- AI модель: {all_jobs[0].ai_model}\n")
         merged_content.append(f"- Модель: {all_jobs[0].model}\n")
