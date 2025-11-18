@@ -432,22 +432,10 @@ async def send_task(request_data: request_form, db: AsyncSession):
     
     jobs = []
     for prompt in prompts:
-        # Создаём временную задачу чтобы получить UUID
-        temp_data = {
-            "prompt_data": request_data,
-            "prompt": prompt.content,
-            "prompt_name": prompt.name,
-            "job_id": None,
-            "batch_id": batch_id
-        }
-        temp_job = q.enqueue(add_prompt_task, temp_data)
-        job_id = temp_job.id
+        # Генерируем UUID вручную, чтобы избежать создания задач с job_id=None
+        job_id = str(uuid.uuid4())
         
-        # Сразу отменяем временную задачу
-        temp_job.cancel()
-        temp_job.delete()
-        
-        # Создаём запись в БД с правильным job_id
+        # Создаём запись в БД с сгенерированным job_id
         job_record = JobResult(
             job_id=job_id,
             batch_id=batch_id,
@@ -460,7 +448,7 @@ async def send_task(request_data: request_form, db: AsyncSession):
         db.add(job_record)
         await db.flush()
         
-        # Создаём финальную задачу с правильным job_id
+        # Создаём задачу с правильным job_id
         data = {
             "prompt_data": request_data,
             "prompt": prompt.content,
